@@ -77,7 +77,7 @@ requests. A Vercel dashboard with no reverse proxy and no
 not fall back to a laptop command or localhost.
 
 The MCP service must also be configured with `MCP_BASE_URL` so credential
-responses advertise the public `/mcp` URL rather than `127.0.0.1`. Credential
-issuance on a remote deployment must be protected by the service's bootstrap or
-wallet-authenticated issuance flow. Never expose `MCP_BOOTSTRAP_TOKEN` to the
-browser.
+responses advertise the public `/mcp` URL rather than `127.0.0.1`. The live
+Agents page uses a short-lived, origin-bound wallet signature challenge to
+issue credentials remotely. `MCP_BOOTSTRAP_TOKEN` remains for server/operator
+automation only and must never be exposed to the browser.

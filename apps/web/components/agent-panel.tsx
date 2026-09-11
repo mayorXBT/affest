@@ -18,7 +18,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { useAccount } from 'wagmi';
+import { useAccount, useSignMessage } from 'wagmi';
 import { mcpBaseUrl, mcpConfigured } from '@/lib/public-config';
 
 const MCP_URL = mcpBaseUrl;
@@ -87,6 +87,7 @@ export function AgentTeaser() {
 
 export function AgentCredentials() {
   const { address, isConnected } = useAccount();
+  const { signMessageAsync } = useSignMessage();
   const [issued, setIssued] = useState<Issued | undefined>();
   const [online, setOnline] = useState<boolean | undefined>();
   const [busy, setBusy] = useState(false);
@@ -111,10 +112,17 @@ export function AgentCredentials() {
     }
     setBusy(true);
     try {
+      const challengeResponse = await fetch(`${MCP_URL}/credentials/challenge?wallet=${encodeURIComponent(address)}`);
+      if (!challengeResponse.ok) throw new Error('credential challenge failed');
+      const challengeBody: unknown = await challengeResponse.json();
+      if (!challengeBody || typeof challengeBody !== 'object') throw new Error('bad credential challenge');
+      const challenge = challengeBody as Record<string, unknown>;
+      if (typeof challenge.message !== 'string' || typeof challenge.nonce !== 'string') throw new Error('bad credential challenge');
+      const signature = await signMessageAsync({ message: challenge.message });
       const response = await fetch(`${MCP_URL}/credentials`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ userId: address, name: 'Claude', scopes: ['read', 'plan', 'proof', 'action'] }),
+        body: JSON.stringify({ userId: address, name: 'Claude', scopes: ['read', 'plan', 'proof', 'action'], nonce: challenge.nonce, signature }),
       });
       if (!response.ok) {
         toast(response.status === 401
