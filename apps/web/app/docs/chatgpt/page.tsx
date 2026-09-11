@@ -7,7 +7,7 @@ export default function DocsChatGptPage() {
   return (
     <DocsArticle
       title="ChatGPT"
-      lede="ChatGPT cannot hit localhost. It only talks to a public HTTPS MCP URL. Affest also requires Authorization: Bearer aff_… on every /mcp call, and ChatGPT usually cannot set that header. Inject the token on the tunnel, then add the HTTPS URL as a custom connector."
+      lede="ChatGPT cannot hit localhost. It only talks to a public HTTPS MCP URL. The hosted Affest dashboard is https://affest.cefo.dev. Affest also requires Authorization: Bearer aff_… on every /mcp call, and ChatGPT usually cannot set that header. Inject the token at the MCP edge, then add the HTTPS URL as a custom connector."
     >
       <h2>What you need</h2>
       <ul>

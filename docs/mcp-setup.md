@@ -63,3 +63,13 @@ ngrok http 8787 --request-header-add "Authorization: Bearer aff_YOUR_TOKEN"
 In ChatGPT, enable Developer Mode, create a connector with the ngrok `https://…/mcp` URL, and pick No authentication. Enable the connector from + in each new chat. The click path lives in the app docs at `/docs/chatgpt`.
 
 Read tools query live CC3 and Sepolia balances for the wallet bound to the credential. Pause and rebalance tools never sign. The server does not hold browser keys.
+
+## Hosted dashboard
+
+The production dashboard is `https://affest.cefo.dev`. Set
+`NEXT_PUBLIC_MCP_BASE_URL` in its Vercel project to the origin that hosts MCP,
+for example `https://mcp.example.com`. Do not include `/mcp` in that value.
+
+If a reverse proxy serves MCP from `affest.cefo.dev`, leave the variable empty.
+The dashboard then uses same-origin `/health`, `/credentials`, and `/mcp`
+requests.

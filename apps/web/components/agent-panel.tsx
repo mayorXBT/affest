@@ -19,8 +19,10 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAccount } from 'wagmi';
+import { mcpBaseUrl } from '@/lib/public-config';
 
-const MCP_URL = 'http://127.0.0.1:8787';
+const MCP_URL = mcpBaseUrl;
+const MCP_ENDPOINT = `${MCP_URL}/mcp`;
 const STORE_KEY = 'affest.mcp.credential';
 
 type Issued = {
@@ -124,7 +126,7 @@ export function AgentCredentials() {
         toast('MCP credential issued. Use Copy next to the token.');
       }
     } catch {
-      toast('MCP server is not reachable on http://127.0.0.1:8787');
+      toast(`MCP server is not reachable${MCP_URL ? ` at ${MCP_URL}` : ''}`);
     } finally {
       setBusy(false);
     }
@@ -149,7 +151,7 @@ export function AgentCredentials() {
     ? JSON.stringify({
       mcpServers: {
         affest: {
-          url: `${MCP_URL}/mcp`,
+          url: MCP_ENDPOINT,
           headers: { Authorization: `Bearer ${issued.token}` },
         },
       },
@@ -254,7 +256,7 @@ export function AgentCredentials() {
         </div>
         <div className="flex items-center justify-between border-t border-[#2b3436] py-3 text-[12px] text-muted">
           <span>Endpoint</span>
-          <code className="font-mono text-[12px] text-[#c5cfca]">http://127.0.0.1:8787/mcp</code>
+          <code className="font-mono text-[12px] text-[#c5cfca]">{MCP_ENDPOINT}</code>
         </div>
         <div className="flex items-center justify-between border-t border-[#2b3436] py-3 text-[12px] text-muted">
           <span>Transport</span>
@@ -293,7 +295,7 @@ export function AgentCredentials() {
               </Button>
             </div>
             <small className="block text-[11px] leading-relaxed text-[#829088]">
-              ChatGPT needs a public HTTPS URL. Tunnel `127.0.0.1:8787` then use the same bearer token.
+              ChatGPT needs a public HTTPS URL. Set <code>NEXT_PUBLIC_MCP_BASE_URL</code> to the hosted MCP origin, then use the same bearer token.
             </small>
           </div>
         ) : (

@@ -11,7 +11,7 @@ export default function DocsMcpPage() {
     >
       <h2>What an agent can do</h2>
       <p>
-        Run <code>pnpm --filter @affest/mcp start</code>. The process listens on <code>http://127.0.0.1:8787/mcp</code>. Health is <code>/health</code>. The SDK is Streamable HTTP 1.30.0. Initialize must send <code>Accept: application/json, text/event-stream</code> or the server returns -32000.
+        Run <code>pnpm --filter @affest/mcp start</code> locally, or deploy it as a persistent Node service. The local endpoint is <code>http://127.0.0.1:8787/mcp</code>. The hosted dashboard is <code>https://affest.cefo.dev</code> and reads <code>NEXT_PUBLIC_MCP_BASE_URL</code> for the remote MCP origin. Health is <code>/health</code>. The SDK is Streamable HTTP 1.30.0. Initialize must send <code>Accept: application/json, text/event-stream</code> or the server returns -32000.
       </p>
       <p>
         Open Affest /agents, connect the wallet, and generate a credential. Copy it from the input. Affest stores an HMAC-SHA256 hash, not the raw token. Revoke on the same page. The token is bound to that address.
@@ -27,7 +27,7 @@ export default function DocsMcpPage() {
       <pre>{`{
   "mcpServers": {
     "affest": {
-      "url": "http://127.0.0.1:8787/mcp",
+      "url": "https://mcp.example.com/mcp",
       "headers": { "Authorization": "Bearer aff_YOUR_TOKEN" }
     }
   }

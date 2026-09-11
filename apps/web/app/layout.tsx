@@ -4,8 +4,10 @@ import { AppShell } from '@/components/app-shell';
 import { Toaster } from '@/components/ui/sonner';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { WalletProvider } from '@/lib/wallet';
+import { appUrl } from '@/lib/public-config';
 
 export const metadata: Metadata = {
+  metadataBase: new URL(appUrl),
   title: 'Affest - verified cross-chain automation',
   description: 'Verified cross-chain automation for self-driving portfolios.',
 };

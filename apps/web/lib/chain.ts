@@ -2,15 +2,16 @@ import { defineChain, numberToHex } from 'viem';
 import { sepolia } from 'viem/chains';
 import { createConfig, fallback, http } from 'wagmi';
 import { injected } from 'wagmi/connectors';
+import { creditcoinChainId, creditcoinRpcUrl, sepoliaRpcUrl } from '@/lib/public-config';
 
 export { sepolia };
 
 export const creditcoinCc3 = defineChain({
-  id: 102031,
+  id: creditcoinChainId,
   name: 'Creditcoin CC3 Testnet',
   nativeCurrency: { name: 'Testnet CTC', symbol: 'TCTC', decimals: 18 },
   rpcUrls: {
-    default: { http: ['https://rpc.cc3-testnet.creditcoin.network'] },
+    default: { http: [creditcoinRpcUrl] },
   },
   blockExplorers: {
     default: { name: 'Blockscout', url: 'https://creditcoin-testnet.blockscout.com' },
@@ -24,7 +25,7 @@ export const wagmiConfig = createConfig({
   transports: {
     [creditcoinCc3.id]: http(creditcoinCc3.rpcUrls.default.http[0]),
     [sepolia.id]: fallback([
-      http('https://ethereum-sepolia-rpc.publicnode.com'),
+      http(sepoliaRpcUrl),
       http('https://1rpc.io/sepolia'),
     ]),
   },
@@ -43,6 +44,6 @@ export const sepoliaAddChainParams = {
   chainId: numberToHex(sepolia.id),
   chainName: sepolia.name,
   nativeCurrency: sepolia.nativeCurrency,
-  rpcUrls: ['https://ethereum-sepolia-rpc.publicnode.com', 'https://1rpc.io/sepolia'],
+  rpcUrls: [sepoliaRpcUrl, 'https://1rpc.io/sepolia'],
   blockExplorerUrls: [sepolia.blockExplorers.default.url],
 };

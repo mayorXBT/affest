@@ -1,18 +1,23 @@
+import { configuredAddress } from '@/lib/public-config';
+
 export const cc3Contracts = {
-  swapAdapter: '0xd010E8bdbd492124aF10D2ac3f025beaC2E9D44C',
-  strategyManager: '0xf016A45345857aeE7e93C987B4429840B779020B',
-  vaultFactory: '0x6A83bC86a1cF17b7F5a22d96e6aF376402491749',
+  attestationVerifier: configuredAddress(process.env.NEXT_PUBLIC_AFFEST_ATTESTATION_VERIFIER_ADDRESS, '0xD5ed47C1b75D41DFE2de73620C1f496d89861D1D'),
+  swapAdapter: configuredAddress(process.env.NEXT_PUBLIC_DEMO_SWAP_ADAPTER_ADDRESS, '0xd010E8bdbd492124aF10D2ac3f025beaC2E9D44C'),
+  strategyManager: configuredAddress(process.env.NEXT_PUBLIC_AFFEST_STRATEGY_MANAGER_ADDRESS, '0xf016A45345857aeE7e93C987B4429840B779020B'),
+  executor: configuredAddress(process.env.NEXT_PUBLIC_AFFEST_EXECUTOR_ADDRESS, '0x2544619c10F049DEE88b121B7A0c6f6d144cA883'),
+  vaultFactory: configuredAddress(process.env.NEXT_PUBLIC_AFFEST_VAULT_FACTORY_ADDRESS, '0x6A83bC86a1cF17b7F5a22d96e6aF376402491749'),
 } as const;
 
 export const cc3StartBlock = 5_451_926n;
 
 export const legacyDemoTokens = {
-  stable: '0x5b185DC5443dca8bda7C4ca7De1a6BcA8d73C2b6',
-  risk: '0x3cC438F47c330AB747cf5404c573156221beD2fD',
+  stable: configuredAddress(process.env.NEXT_PUBLIC_DEMO_STABLE_TOKEN_ADDRESS, '0x5b185DC5443dca8bda7C4ca7De1a6BcA8d73C2b6'),
+  risk: configuredAddress(process.env.NEXT_PUBLIC_DEMO_RISK_TOKEN_ADDRESS, '0x3cC438F47c330AB747cf5404c573156221beD2fD'),
 } as const;
 
 export const sepoliaContracts = {
-  weth: '0x7b79995e5f793A07Bc00c21412e50Ecae098E7f9',
+  weth: configuredAddress(process.env.NEXT_PUBLIC_SEPOLIA_WETH_ADDRESS, '0x7b79995e5f793A07Bc00c21412e50Ecae098E7f9'),
+  sourceSignal: configuredAddress(process.env.NEXT_PUBLIC_SOURCE_SIGNAL_CONTRACT_ADDRESS, '0x5b185DC5443dca8bda7C4ca7De1a6BcA8d73C2b6'),
 } as const;
 
 export const erc20Abi = [

@@ -7,6 +7,13 @@ Because the strategy manager and verifier store their administrator immutably,
 the safe recovery path is to generate/fund a fresh wallet and redeploy the
 admin-owned CC3 contracts before any further signing.
 
+## Hosted dashboard
+
+The dashboard deployment is [https://affest.cefo.dev](https://affest.cefo.dev).
+Its Vercel project must set the `NEXT_PUBLIC_*` values from `.env.example`.
+Set `NEXT_PUBLIC_MCP_BASE_URL` to the hosted MCP origin, or leave it empty when
+the dashboard origin reverse-proxies MCP requests.
+
 ## Ethereum Sepolia
 
 | Contract | Address | Deployment transaction |

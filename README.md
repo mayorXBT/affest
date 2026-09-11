@@ -67,6 +67,12 @@ Open [http://localhost:3000](http://localhost:3000). The disconnected view is
 empty by design. Select **Use preview wallet** to inspect the sample vault.
 Preview actions do not sign or submit transactions.
 
+The hosted dashboard is [https://affest.cefo.dev](https://affest.cefo.dev).
+Set `NEXT_PUBLIC_APP_URL` to that value in Vercel. Set
+`NEXT_PUBLIC_MCP_BASE_URL` to the origin of the hosted MCP service. Leave it
+empty only when your reverse proxy serves `/health`, `/credentials`, and `/mcp`
+from `affest.cefo.dev`.
+
 ## Run the MCP server
 
 Set a local bootstrap token and token-hash secret in the process environment.
@@ -98,6 +104,10 @@ in a `NEXT_PUBLIC_` variable or in an MCP response.
 Verified chain IDs, RPC requirements, Attestcoin chain keys, precompile details,
 SDK versions, deployed addresses, and CC3 DEX findings are recorded in
 [`docs/research.md`](docs/research.md) and [`docs/deployments.md`](docs/deployments.md).
+
+The browser reads public RPC and contract overrides from the `NEXT_PUBLIC_*`
+entries in `.env.example`. Add the same values to the Vercel project when the
+deployment should use addresses other than the documented testnet defaults.
 
 ## Architecture
 
