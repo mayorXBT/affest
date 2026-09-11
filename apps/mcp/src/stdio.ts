@@ -4,8 +4,8 @@ import { registerServer } from './tools.js';
 
 const wallet = process.env.AFFEST_WALLET ?? 'local';
 const credentials = new CredentialStore('stdio');
-const issued = credentials.issue(wallet, 'stdio', ['read', 'plan', 'proof', 'action']);
-const auth = credentials.authenticate(`Bearer ${issued.token}`);
+const issued = await credentials.issue(wallet, 'stdio', ['read', 'plan', 'proof', 'action']);
+const auth = await credentials.authenticate(`Bearer ${issued.token}`);
 if (!auth) throw new Error('stdio credential failed');
 
 const server = registerServer(auth, credentials);

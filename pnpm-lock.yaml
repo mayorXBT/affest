@@ -56,9 +56,15 @@ importers:
       '@affest/chain-config':
         specifier: workspace:*
         version: link:../../packages/chain-config
+      '@affest/strategy-engine':
+        specifier: workspace:*
+        version: link:../../packages/strategy-engine
       '@modelcontextprotocol/sdk':
         specifier: 1.30.0
         version: 1.30.0(zod@4.1.5)
+      pg:
+        specifier: 8.16.3
+        version: 8.16.3
       viem:
         specifier: 'catalog:'
         version: 2.37.3(bufferutil@4.1.0)(typescript@5.9.2)(utf-8-validate@5.0.10)(zod@4.1.5)
@@ -66,6 +72,9 @@ importers:
         specifier: 'catalog:'
         version: 4.1.5
     devDependencies:
+      '@types/pg':
+        specifier: 8.15.5
+        version: 8.15.5
       '@types/node':
         specifier: 24.3.0
         version: 24.3.0

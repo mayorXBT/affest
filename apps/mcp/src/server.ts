@@ -4,17 +4,20 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import { getAddress, isAddress, isHex, verifyMessage } from 'viem';
 import { z } from 'zod';
-import { CredentialStore } from './auth.js';
+import { CredentialStore, PostgresCredentialPersistence } from './auth.js';
 import { registerServer } from './tools.js';
 
 const port = Number(process.env.PORT ?? 8787);
 const bootstrapToken = process.env.MCP_BOOTSTRAP_TOKEN ?? 'affest-local';
 const tokenSecret = process.env.MCP_TOKEN_HASH_SECRET ?? randomBytes(32).toString('hex');
 const publicMcpBaseUrl = (process.env.MCP_BASE_URL?.trim() || `http://127.0.0.1:${port}`).replace(/\/+$/, '');
-const credentials = new CredentialStore(tokenSecret);
-const localToken = credentials.issue('local', 'local-cli', ['read', 'plan', 'proof', 'action']);
+const persistence = process.env.DATABASE_URL ? new PostgresCredentialPersistence(process.env.DATABASE_URL) : undefined;
+const credentials = new CredentialStore(tokenSecret, persistence);
+await credentials.ready();
+const localToken = await credentials.issue('local', 'local-cli', ['read', 'plan', 'proof', 'action']);
 const challengeTtlMs = 5 * 60 * 1000;
 const challenges = new Map<string, { nonce: string; message: string; userId: string; origin: string; expiresAt: number }>();
+const chatgptTickets = new Map<string, { auth: import('./auth.js').AuthContext; expiresAt: number }>();
 
 async function readBody(req: IncomingMessage): Promise<unknown> {
   const chunks: Buffer[] = [];
@@ -122,17 +125,31 @@ const httpServer = createServer(async (req, res) => {
       if (!validSignature) return json(res, 401, { error: 'invalid wallet signature' });
       challenges.delete(challengeKey(origin, address));
     }
-    const issued = credentials.issue(userId, input.data.name, input.data.scopes);
+    const issued = await credentials.issue(userId, input.data.name, input.data.scopes);
     return json(res, 201, { token: issued.token, credentialId: issued.record.id, expiresAt: issued.record.expiresAt, mcp: `${publicMcpBaseUrl}/mcp` });
   }
-  if (requestPath === '/credentials/revoke' && req.method === 'POST') {
-    const auth = credentials.authenticate(req.headers.authorization);
+  if (requestPath === '/credentials/chatgpt-link' && req.method === 'POST') {
+    const auth = await credentials.authenticate(req.headers.authorization);
     if (!auth) return json(res, 401, { error: 'valid Affest bearer credential required' });
-    credentials.revoke(auth.credentialId);
+    const ticket = randomBytes(24).toString('hex');
+    const expiresAt = Date.now() + 10 * 60 * 1000;
+    chatgptTickets.set(ticket, { auth, expiresAt });
+    return json(res, 201, { url: `${publicMcpBaseUrl}/mcp?ticket=${ticket}`, expiresAt, scopes: ['read'], note: 'Short-lived read-only connection URL. Generate a new link when it expires.' });
+  }
+  if (requestPath === '/credentials/revoke' && req.method === 'POST') {
+    const auth = await credentials.authenticate(req.headers.authorization);
+    if (!auth) return json(res, 401, { error: 'valid Affest bearer credential required' });
+    await credentials.revoke(auth.credentialId);
     return json(res, 200, { revoked: true, credentialId: auth.credentialId });
   }
   if (requestPath !== '/mcp') return json(res, 404, { error: 'not found' });
-  const auth = credentials.authenticate(req.headers.authorization);
+  let auth = await credentials.authenticate(req.headers.authorization);
+  if (!auth) {
+    const ticket = new URL(req.url ?? '/', `http://${req.headers.host ?? 'localhost'}`).searchParams.get('ticket');
+    const grant = ticket ? chatgptTickets.get(ticket) : undefined;
+    if (grant && grant.expiresAt > Date.now()) auth = { ...grant.auth, scopes: ['read'] };
+    else if (ticket) chatgptTickets.delete(ticket);
+  }
   if (!auth) return json(res, 401, { error: 'valid Affest bearer credential required' });
   if (req.method !== 'POST' && req.method !== 'GET' && req.method !== 'DELETE') return json(res, 405, { error: 'method not allowed' });
   const transport = new StreamableHTTPServerTransport();

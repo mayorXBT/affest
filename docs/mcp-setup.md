@@ -16,9 +16,11 @@ The process prints a local CLI token. Open Affest `/agents`, connect a wallet, a
 The endpoint is `http://localhost:8787/mcp`. Health is available at
 `/health`.
 
-Generate a credential through the bootstrap-protected endpoint. The raw token
-is returned once and is never stored; only an HMAC-SHA256 hash is retained in
-the credential store (Postgres persistence is the next integration step).
+Generate a credential through the wallet-signature challenge on the Agents
+page. The raw token is returned once. The MCP service stores only an
+HMAC-SHA256 hash. Set `DATABASE_URL` to the Supabase Postgres connection string
+to persist credentials across Render restarts; without it, credentials remain
+in memory.
 
 ```powershell
 Invoke-RestMethod http://localhost:8787/credentials -Method Post `
@@ -54,7 +56,13 @@ Claude Desktop stdio, from the repo root after build:
 }
 ```
 
-ChatGPT cannot hit localhost. Tunnel 8787 over HTTPS and inject the bearer on the tunnel, because ChatGPT usually cannot set `Authorization`:
+ChatGPT cannot hit localhost. For the hosted service, click **Copy read-only
+connection link** on the Agents page. It creates a ten-minute URL ticket so
+ChatGPT does not need to send a custom `Authorization` header. Treat the link
+like a temporary bearer credential and do not publish it.
+
+For local-only testing, tunnel 8787 over HTTPS and inject the bearer on the
+tunnel:
 
 ```powershell
 ngrok http 8787 --request-header-add "Authorization: Bearer aff_YOUR_TOKEN"
