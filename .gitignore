@@ -1,0 +1,16 @@
+node_modules/
+.next/
+.pnpm-store/
+dist/
+coverage/
+*.tsbuildinfo
+.env
+.env.local
+out/
+cache/
+broadcast/
+*.log
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+.gstack/

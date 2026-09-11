@@ -1,0 +1,24 @@
+{
+  "name": "@affest/database",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./postgres": "./src/postgres.ts",
+    "./connection": "./src/connection.ts"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "drizzle-orm": "catalog:",
+    "pg": "8.16.3",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@types/pg": "8.15.5"
+  }
+}

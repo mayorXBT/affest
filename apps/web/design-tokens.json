@@ -1,0 +1,168 @@
+{
+  "$comment": "Affest design tokens. Map 1:1 into CSS variables and shadcn theme. Do not replace with Glider Selecta, mint, or shadcn zinc defaults.",
+  "meta": {
+    "name": "Affest",
+    "tagline": "Verified cross-chain automation for self-driving portfolios.",
+    "wordmark": "Affest",
+    "wordmarkCasing": "title-case",
+    "theme": "dark-only-v1",
+    "updated": "2026-09-08"
+  },
+  "fonts": {
+    "sans": {
+      "family": "Space Grotesk",
+      "fallback": ["system-ui", "sans-serif"],
+      "weights": [400, 500, 600, 700],
+      "license": "SIL Open Font License 1.1",
+      "source": "https://fontsource.org/fonts/space-grotesk",
+      "notes": "Requested for the entire Affest dashboard."
+    },
+    "mono": {
+      "family": "Space Grotesk",
+      "fallback": ["system-ui", "sans-serif"],
+      "weights": [400, 500, 600, 700],
+      "license": "SIL Open Font License 1.1",
+      "source": "https://fontsource.org/fonts/space-grotesk",
+      "notes": "Same face as body."
+    }
+  },
+  "typography": {
+    "htmlSize": { "value": "16px" },
+    "brand": { "size": "20px", "weight": 800, "letterSpacing": "-0.04em", "lineHeight": 1.1 },
+    "display": { "size": "28px", "weight": 600, "letterSpacing": "-0.05em", "lineHeight": 1.15, "sizeMobile": "22px" },
+    "title": { "size": "18px", "weight": 600, "letterSpacing": "-0.04em", "lineHeight": 1.2 },
+    "titleLg": { "size": "21px", "weight": 600, "letterSpacing": "-0.04em", "lineHeight": 1.2 },
+    "balance": { "size": "41px", "weight": 600, "letterSpacing": "-0.07em", "lineHeight": 1, "unitSize": "14px" },
+    "body": { "size": "13px", "weight": 400, "lineHeight": 1.6 },
+    "bodySmall": { "size": "12px", "weight": 400, "lineHeight": 1.65 },
+    "ui": { "size": "13px", "weight": 400, "lineHeight": 1.3 },
+    "label": { "size": "11px", "weight": 400, "letterSpacing": "0.12em", "transform": "uppercase", "family": "mono" },
+    "chip": { "size": "11px", "weight": 400, "family": "mono" },
+    "button": { "size": "12px", "weight": 800, "letterSpacing": "0" },
+    "caption": { "size": "12px", "weight": 400, "lineHeight": 1.5 }
+  },
+  "color": {
+    "ink": { "value": "#0d1012", "css": "--ink", "use": "page background" },
+    "inkSidebar": { "value": "#0b0e10", "css": "--ink-sidebar", "use": "sidebar" },
+    "ink2": { "value": "#151a1d", "css": "--ink-2", "use": "card / panel surface" },
+    "ink3": { "value": "#1c2326", "css": "--ink-3", "use": "active nav, inset wells" },
+    "line": { "value": "#2b3438", "css": "--line", "use": "default border" },
+    "lineStrong": { "value": "#3c4737", "css": "--line-strong", "use": "preview banner border" },
+    "paper": { "value": "#f1efe7", "css": "--paper", "use": "primary text" },
+    "muted": { "value": "#8f9a9b", "css": "--muted", "use": "secondary text" },
+    "muted2": { "value": "#657173", "css": "--muted-2", "use": "tertiary / footer" },
+    "lime": { "value": "#d6f26a", "css": "--lime", "use": "accent, primary button, positive" },
+    "lime2": { "value": "#a9c440", "css": "--lime-2", "use": "eyebrow accent" },
+    "limeInk": { "value": "#101410", "css": "--lime-ink", "use": "text on lime buttons" },
+    "amber": { "value": "#f5b96a", "css": "--amber", "use": "waiting, paused" },
+    "blue": { "value": "#8b9bff", "css": "--blue", "use": "proof / agent" },
+    "risk": { "value": "#7185ea", "css": "--risk", "use": "risk allocation slice" },
+    "danger": { "value": "#f0b3a5", "css": "--danger", "use": "destructive text" },
+    "dangerBg": { "value": "#301f1e", "css": "--danger-bg", "use": "destructive button" },
+    "dangerLine": { "value": "#663c35", "css": "--danger-line", "use": "destructive border" },
+    "previewBg": { "value": "#172018", "css": "--preview-bg", "use": "preview / connect banner" },
+    "waitBg": { "value": "#2b2418", "css": "--wait-bg", "use": "waiting badge" },
+    "waitLine": { "value": "#5c4a2e", "css": "--wait-line", "use": "waiting badge border" }
+  },
+  "semantic": {
+    "background": "ink",
+    "foreground": "paper",
+    "card": "ink2",
+    "cardForeground": "paper",
+    "border": "line",
+    "primary": "lime",
+    "primaryForeground": "limeInk",
+    "secondary": "ink3",
+    "secondaryForeground": "paper",
+    "muted": "muted",
+    "accent": "lime",
+    "destructive": "danger",
+    "ring": "lime",
+    "success": "lime",
+    "warning": "amber",
+    "info": "blue"
+  },
+  "radius": {
+    "none": "0px",
+    "sm": "4px",
+    "md": "6px",
+    "lg": "8px",
+    "xl": "10px",
+    "full": "9999px",
+    "nav": "7px",
+    "button": "7px",
+    "card": "10px",
+    "chip": "4px",
+    "input": "6px"
+  },
+  "space": {
+    "base": 4,
+    "scale": {
+      "0": "0px",
+      "1": "4px",
+      "2": "8px",
+      "3": "12px",
+      "4": "16px",
+      "5": "20px",
+      "6": "24px",
+      "7": "28px",
+      "8": "32px",
+      "9": "36px",
+      "10": "40px",
+      "12": "48px"
+    },
+    "sidebarWidth": "240px",
+    "contentMax": "1240px",
+    "gridGap": "14px",
+    "cardPad": "24px",
+    "pagePadDesktop": "48px",
+    "pagePadTablet": "24px",
+    "pagePadMobile": "16px"
+  },
+  "shadow": {
+    "none": "none",
+    "focus": "0 0 0 2px #0d1012, 0 0 0 4px #d6f26a66",
+    "notes": "Affest is flat. Do not add drop shadows, glow, or Glider inset highlights on cards."
+  },
+  "motion": {
+    "duration": { "micro": "80ms", "short": "160ms", "sheet": "200ms" },
+    "easing": { "out": "cubic-bezier(0.16, 1, 0.3, 1)" },
+    "reducedMotion": "disable pulse and transitions above 120ms"
+  },
+  "breakpoints": {
+    "sm": "640px",
+    "md": "768px",
+    "lg": "1024px",
+    "xl": "1280px"
+  },
+  "zIndex": {
+    "base": 0,
+    "sidebar": 20,
+    "header": 30,
+    "sheet": 40,
+    "dialog": 50,
+    "toast": 60
+  },
+  "chart": {
+    "stable": "#d6f26a",
+    "risk": "#7185ea",
+    "sparkline": "do-not-render-until-real-series",
+    "donut": "conic-gradient with text summary 62% stable / 38% risk"
+  },
+  "copy": {
+    "forbidden": [
+      "lowercase wordmark affest",
+      "Good morning, operator.",
+      "dollar portfolio values",
+      "Contracts deployed unless an address exists",
+      "bare 0x addresses without Preview"
+    ],
+    "required": [
+      "Affest",
+      "Verified cross-chain automation for self-driving portfolios.",
+      "PREVIEW DATA on sample numbers",
+      "testnet chip",
+      "Nothing executes from a database claim. The Creditcoin contract must verify the Attestcoin proof first."
+    ]
+  }
+}

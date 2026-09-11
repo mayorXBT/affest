@@ -1,0 +1,117 @@
+'use client';
+
+import { decodeEventLog, parseUnits } from 'viem';
+import { useSwitchChain, useWalletClient, useWriteContract } from 'wagmi';
+import { readContract, waitForTransactionReceipt } from 'wagmi/actions';
+import { vaultBytecode, wrappedNativeBytecode } from '@/lib/bytecode';
+import { cc3AddChainParams, creditcoinCc3, wagmiConfig } from '@/lib/chain';
+import { cc3Contracts, sepoliaContracts, strategyManagerAbi, vaultAbi, vaultFactoryAbi, wrappedNativeAbi } from '@/lib/contracts';
+import { useCc3Holdings } from '@/lib/use-cc3';
+import { ensureCc3Vault, ensureWrappedTctc, type VaultDeployers } from '@/lib/vault-setup';
+
+export function useCreateStrategy() {
+  const holdings = useCc3Holdings();
+  const { writeContractAsync, isPending } = useWriteContract();
+  const { data: walletClient } = useWalletClient();
+  const { switchChainAsync } = useSwitchChain();
+
+  function deployers(): VaultDeployers {
+    if (!walletClient) throw new Error('Connect a wallet first');
+    return {
+      deployWrapper: () => walletClient.deployContract({
+        abi: wrappedNativeAbi,
+        bytecode: wrappedNativeBytecode,
+      }),
+      deployVault: (args) => walletClient.deployContract({
+        abi: vaultAbi,
+        bytecode: vaultBytecode,
+        args,
+      }),
+    };
+  }
+
+  async function create(input: {
+    tctcPct: number;
+    trigger?: 'TCTC' | 'ETH';
+    minimum?: string;
+  }) {
+    if (!holdings.isConnected || !holdings.address) {
+      throw new Error('Connect a wallet first');
+    }
+    const tctcBps = input.tctcPct * 100;
+    const ethBps = 10_000 - tctcBps;
+    const minimum = input.minimum && Number(input.minimum) > 0 ? input.minimum : '1';
+    try {
+      await switchChainAsync({ chainId: creditcoinCc3.id });
+    } catch {
+      const provider = window.ethereum;
+      if (!provider?.request) throw new Error('No injected wallet found');
+      await provider.request({ method: 'wallet_addEthereumChain', params: [cc3AddChainParams] });
+      await switchChainAsync({ chainId: creditcoinCc3.id });
+    }
+    const wrapper = await ensureWrappedTctc(deployers());
+    holdings.rememberWrapper(wrapper);
+    const vault = await ensureCc3Vault({
+      owner: holdings.address,
+      wrapper,
+      deployers: deployers(),
+      createVault: (stable) => writeContractAsync({
+        abi: vaultFactoryAbi,
+        address: cc3Contracts.vaultFactory,
+        functionName: 'createVault',
+        args: [stable, sepoliaContracts.weth, cc3Contracts.swapAdapter],
+      }),
+    });
+    holdings.rememberVault(vault);
+    const hash = await writeContractAsync({
+      abi: strategyManagerAbi,
+      address: cc3Contracts.strategyManager,
+      functionName: 'createStrategy',
+      args: [{
+        vault,
+        stableAsset: wrapper,
+        riskAsset: sepoliaContracts.weth,
+        triggerAsset: input.trigger === 'TCTC' ? wrapper : sepoliaContracts.weth,
+        minimumTriggerAmount: parseUnits(minimum, 18),
+        signalType: 1,
+        stableWeightBps: tctcBps,
+        riskWeightBps: ethBps,
+        mode: 2,
+        automaticExecutionLimit: parseUnits('100', 18),
+        maximumActionAmount: parseUnits('500', 18),
+        maximumWeeklyAmount: parseUnits('1500', 18),
+        maximumSlippageBps: 100,
+        expiresAt: BigInt(Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 365),
+        cooldownSeconds: 0n,
+      }],
+    });
+    const receipt = await waitForTransactionReceipt(wagmiConfig, { hash });
+    let strategyId: bigint | undefined;
+    for (const log of receipt.logs) {
+      try {
+        const decoded = decodeEventLog({
+          abi: strategyManagerAbi,
+          data: log.data,
+          topics: log.topics,
+        });
+        if (decoded.eventName === 'StrategyCreated') {
+          strategyId = decoded.args.strategyId;
+          break;
+        }
+      } catch {
+        continue;
+      }
+    }
+    if (strategyId === undefined) {
+      strategyId = await readContract(wagmiConfig, {
+        abi: strategyManagerAbi,
+        address: cc3Contracts.strategyManager,
+        functionName: 'strategyCount',
+        chainId: creditcoinCc3.id,
+      });
+    }
+    return { hash, strategyId: strategyId.toString() };
+  }
+
+  return { create, isPending, connected: holdings.isConnected };
+}

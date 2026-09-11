@@ -1,0 +1,22 @@
+{
+  "name": "@affest/worker",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json",
+    "proof:inspect": "node dist/proof-cli.js"
+  },
+  "dependencies": {
+    "@affest/api-contracts": "workspace:*",
+    "@affest/application": "workspace:*",
+    "@affest/chain-config": "workspace:*",
+    "@affest/database": "workspace:*",
+    "@gluwa/usc-sdk": "catalog:",
+    "pino": "catalog:",
+    "viem": "catalog:",
+    "zod": "catalog:"
+  }
+}

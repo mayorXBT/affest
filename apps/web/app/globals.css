@@ -1,0 +1,152 @@
+@import '@fontsource/space-grotesk/400.css';
+@import '@fontsource/space-grotesk/500.css';
+@import '@fontsource/space-grotesk/600.css';
+@import '@fontsource/space-grotesk/700.css';
+@import 'tailwindcss';
+
+@theme {
+  --font-sans: 'Space Grotesk', system-ui, sans-serif;
+  --font-mono: 'Space Grotesk', system-ui, sans-serif;
+  --color-ink: #0d1012;
+  --color-ink-sidebar: #0b0e10;
+  --color-ink-2: #151a1d;
+  --color-ink-3: #1c2326;
+  --color-line: #2b3438;
+  --color-line-strong: #3c4737;
+  --color-paper: #f1efe7;
+  --color-muted: #8f9a9b;
+  --color-muted-2: #657173;
+  --color-lime: #d6f26a;
+  --color-lime-2: #a9c440;
+  --color-lime-ink: #101410;
+  --color-amber: #f5b96a;
+  --color-blue: #8b9bff;
+  --color-risk: #7185ea;
+  --color-danger: #f0b3a5;
+  --color-danger-bg: #301f1e;
+  --color-danger-line: #663c35;
+  --color-preview-bg: #172018;
+  --color-wait-bg: #2b2418;
+  --color-wait-line: #5c4a2e;
+  --color-background: #0d1012;
+  --color-foreground: #f1efe7;
+  --color-card: #151a1d;
+  --color-card-foreground: #f1efe7;
+  --color-primary: #d6f26a;
+  --color-primary-foreground: #101410;
+  --color-secondary: #1c2326;
+  --color-secondary-foreground: #f1efe7;
+  --color-destructive: #f0b3a5;
+  --color-border: #2b3438;
+  --color-ring: #d6f26a;
+  --color-sidebar: #0b0e10;
+  --color-sidebar-foreground: #f1efe7;
+  --color-sidebar-primary: #d6f26a;
+  --color-sidebar-primary-foreground: #101410;
+  --color-sidebar-accent: #1c2326;
+  --color-sidebar-accent-foreground: #f1efe7;
+  --color-sidebar-border: #20272a;
+  --color-sidebar-ring: #d6f26a;
+  --color-muted-foreground: #8f9a9b;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 10px;
+}
+
+:root {
+  --ink: #0d1012;
+  --ink-sidebar: #0b0e10;
+  --ink-2: #151a1d;
+  --ink-3: #1c2326;
+  --line: #2b3438;
+  --line-strong: #3c4737;
+  --paper: #f1efe7;
+  --muted: #8f9a9b;
+  --muted-2: #657173;
+  --lime: #d6f26a;
+  --lime-2: #a9c440;
+  --lime-ink: #101410;
+  --amber: #f5b96a;
+  --blue: #8b9bff;
+  --risk: #7185ea;
+  --danger: #f0b3a5;
+  --danger-bg: #301f1e;
+  --danger-line: #663c35;
+  --preview-bg: #172018;
+  --wait-bg: #2b2418;
+  --wait-line: #5c4a2e;
+}
+
+html,
+body {
+  min-height: 100%;
+  background: var(--ink);
+  color: var(--paper);
+  font-family: var(--font-sans);
+}
+
+body {
+  margin: 0;
+}
+
+*:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--lime) 40%, transparent);
+  outline-offset: 3px;
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+.eyebrow {
+  margin: 0 0 9px;
+  color: #7c8889;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.eyebrow.accent {
+  color: var(--lime-2);
+}
+
+.donut {
+  position: relative;
+  display: grid;
+  width: 113px;
+  height: 113px;
+  place-items: center;
+  border-radius: 50%;
+  background: conic-gradient(var(--lime) 0 62%, var(--risk) 62% 100%);
+}
+
+.donut::after {
+  position: absolute;
+  width: 78px;
+  height: 78px;
+  border-radius: 50%;
+  background: var(--ink-2);
+  content: '';
+}
+
+.donut > div {
+  z-index: 1;
+  text-align: center;
+}
+
+.canvas-dots {
+  background-color: #14181b;
+  background-image: radial-gradient(#2a3236 1px, transparent 1px);
+  background-size: 18px 18px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}
