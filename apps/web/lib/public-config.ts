@@ -11,6 +11,8 @@ export const mcpBaseUrl = trimTrailingSlash(
     || (process.env.NODE_ENV === 'development' ? 'http://127.0.0.1:8787' : ''),
 );
 
+export const mcpConfigured = Boolean(mcpBaseUrl);
+
 export const creditcoinRpcUrl = process.env.NEXT_PUBLIC_CREDITCOIN_RPC_URL?.trim()
   || 'https://rpc.cc3-testnet.creditcoin.network';
 

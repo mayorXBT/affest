@@ -9,6 +9,7 @@ import { registerServer } from './tools.js';
 const port = Number(process.env.PORT ?? 8787);
 const bootstrapToken = process.env.MCP_BOOTSTRAP_TOKEN ?? 'affest-local';
 const tokenSecret = process.env.MCP_TOKEN_HASH_SECRET ?? randomBytes(32).toString('hex');
+const publicMcpBaseUrl = (process.env.MCP_BASE_URL?.trim() || `http://127.0.0.1:${port}`).replace(/\/+$/, '');
 const credentials = new CredentialStore(tokenSecret);
 const localToken = credentials.issue('local', 'local-cli', ['read', 'plan', 'proof', 'action']);
 
@@ -58,7 +59,7 @@ const httpServer = createServer(async (req, res) => {
     }).safeParse(body);
     if (!input.success) return json(res, 400, { error: 'invalid credential request' });
     const issued = credentials.issue(input.data.userId, input.data.name, input.data.scopes);
-    return json(res, 201, { token: issued.token, credentialId: issued.record.id, expiresAt: issued.record.expiresAt, mcp: `http://127.0.0.1:${port}/mcp` });
+    return json(res, 201, { token: issued.token, credentialId: issued.record.id, expiresAt: issued.record.expiresAt, mcp: `${publicMcpBaseUrl}/mcp` });
   }
   if (requestPath === '/credentials/revoke' && req.method === 'POST') {
     const auth = credentials.authenticate(req.headers.authorization);
@@ -81,7 +82,7 @@ const httpServer = createServer(async (req, res) => {
 });
 
 httpServer.listen(port, () => {
-  process.stdout.write(`Affest MCP listening on http://127.0.0.1:${port}/mcp\n`);
+  process.stdout.write(`Affest MCP listening on ${publicMcpBaseUrl}/mcp\n`);
   process.stdout.write(`Local CLI token: ${localToken.token}\n`);
   process.stdout.write(`Bootstrap token: ${bootstrapToken}\n`);
 });

@@ -72,4 +72,12 @@ for example `https://mcp.example.com`. Do not include `/mcp` in that value.
 
 If a reverse proxy serves MCP from `affest.cefo.dev`, leave the variable empty.
 The dashboard then uses same-origin `/health`, `/credentials`, and `/mcp`
-requests.
+requests. A Vercel dashboard with no reverse proxy and no
+`NEXT_PUBLIC_MCP_BASE_URL` is intentionally marked **Not configured**; it must
+not fall back to a laptop command or localhost.
+
+The MCP service must also be configured with `MCP_BASE_URL` so credential
+responses advertise the public `/mcp` URL rather than `127.0.0.1`. Credential
+issuance on a remote deployment must be protected by the service's bootstrap or
+wallet-authenticated issuance flow. Never expose `MCP_BOOTSTRAP_TOKEN` to the
+browser.

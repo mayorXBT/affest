@@ -19,7 +19,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAccount } from 'wagmi';
-import { mcpBaseUrl } from '@/lib/public-config';
+import { mcpBaseUrl, mcpConfigured } from '@/lib/public-config';
 
 const MCP_URL = mcpBaseUrl;
 const MCP_ENDPOINT = `${MCP_URL}/mcp`;
@@ -93,12 +93,20 @@ export function AgentCredentials() {
 
   useEffect(() => {
     setIssued(readIssued());
+    if (!mcpConfigured) {
+      setOnline(false);
+      return;
+    }
     void fetch(`${MCP_URL}/health`).then((response) => setOnline(response.ok)).catch(() => setOnline(false));
   }, []);
 
   async function generate() {
     if (!isConnected || !address) {
       toast('Connect a wallet first so the agent reads your account');
+      return;
+    }
+    if (!mcpConfigured) {
+      toast('MCP is not configured for this deployment. Set NEXT_PUBLIC_MCP_BASE_URL in Vercel, then redeploy.');
       return;
     }
     setBusy(true);
@@ -109,7 +117,9 @@ export function AgentCredentials() {
         body: JSON.stringify({ userId: address, name: 'Claude', scopes: ['read', 'plan', 'proof', 'action'] }),
       });
       if (!response.ok) {
-        toast(online === false ? 'Start the MCP server: pnpm --filter @affest/mcp start' : 'Could not issue credential');
+        toast(response.status === 401
+          ? 'The MCP service rejected credential issuance. Configure its dashboard origin and bootstrap flow.'
+          : 'Could not issue credential from the MCP service');
         return;
       }
       const body: unknown = await response.json();
@@ -177,7 +187,7 @@ export function AgentCredentials() {
             <p className="eyebrow">Credentials</p>
             <CardTitle>{issued ? 'Active credential' : 'No active credentials'}</CardTitle>
           </div>
-          <Badge>{online === false ? 'Server offline' : issued ? 'Active' : 'None'}</Badge>
+          <Badge>{!mcpConfigured ? 'Not configured' : online === false ? 'Server offline' : issued ? 'Active' : 'None'}</Badge>
         </CardHeader>
         <CardContent>
           {issued ? (
@@ -238,7 +248,9 @@ export function AgentCredentials() {
           ) : (
             <>
               <p className="my-6 text-[12px] leading-relaxed text-[#899596]">
-                Start `pnpm --filter @affest/mcp start`, connect a wallet, then issue a token. Paste it into Claude or GPT.
+                {mcpConfigured
+                  ? 'Connect a wallet, then issue a scoped token for Claude or GPT.'
+                  : 'The live dashboard is missing its hosted MCP origin. Set NEXT_PUBLIC_MCP_BASE_URL in Vercel to the deployed MCP service, then redeploy.'}
               </p>
               <Button disabled={busy} onClick={() => void generate()}>
                 Generate MCP credential
@@ -256,7 +268,7 @@ export function AgentCredentials() {
         </div>
         <div className="flex items-center justify-between border-t border-[#2b3436] py-3 text-[12px] text-muted">
           <span>Endpoint</span>
-          <code className="font-mono text-[12px] text-[#c5cfca]">{MCP_ENDPOINT}</code>
+          <code className="font-mono text-[12px] text-[#c5cfca]">{mcpConfigured ? MCP_ENDPOINT : 'Not configured'}</code>
         </div>
         <div className="flex items-center justify-between border-t border-[#2b3436] py-3 text-[12px] text-muted">
           <span>Transport</span>
@@ -300,9 +312,11 @@ export function AgentCredentials() {
           </div>
         ) : (
           <div className="mt-5 rounded-md border border-[#334039] bg-[#17201b] p-3">
-            <b className="block text-[12px] text-[#bcd1ad]">MCP is a real server</b>
+            <b className="block text-[12px] text-[#bcd1ad]">{mcpConfigured ? 'MCP is a real server' : 'MCP service needs configuration'}</b>
             <small className="mt-1 block text-[12px] leading-relaxed text-[#829088]">
-              It is not the fake credential toggle. Run the server, issue a token, then paste the config into Claude or GPT.
+              {mcpConfigured
+                ? 'It is not the fake credential toggle. Issue a token, then paste the config into Claude or GPT.'
+                : 'This dashboard cannot issue credentials until NEXT_PUBLIC_MCP_BASE_URL points to a deployed MCP service.'}
             </small>
           </div>
         )}
