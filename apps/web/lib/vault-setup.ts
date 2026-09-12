@@ -3,7 +3,6 @@ import { getBytecode, readContract, waitForTransactionReceipt } from 'wagmi/acti
 import { creditcoinCc3, wagmiConfig } from '@/lib/chain';
 import {
   cc3Contracts,
-  sepoliaContracts,
   vaultAbi,
   vaultFactoryAbi,
 } from '@/lib/contracts';
@@ -35,6 +34,25 @@ async function hasCode(address: Address) {
   return Boolean(code && code !== '0x');
 }
 
+async function isMatchingVault(address: Address, wrapper: Address, riskAsset: Address) {
+  if (!(await hasCode(address))) return false;
+  const [stable, risk] = await Promise.all([
+    readContract(wagmiConfig, {
+      abi: vaultAbi,
+      address,
+      functionName: 'stableAsset',
+      chainId: creditcoinCc3.id,
+    }),
+    readContract(wagmiConfig, {
+      abi: vaultAbi,
+      address,
+      functionName: 'riskAsset',
+      chainId: creditcoinCc3.id,
+    }),
+  ]);
+  return stable.toLowerCase() === wrapper.toLowerCase() && risk.toLowerCase() === riskAsset.toLowerCase();
+}
+
 export async function ensureWrappedTctc(deployers: VaultDeployers): Promise<Address> {
   const stored = readStoredAddress(WRAPPER_KEY);
   if (stored && await hasCode(stored)) return stored;
@@ -49,11 +67,13 @@ export async function ensureWrappedTctc(deployers: VaultDeployers): Promise<Addr
 export async function ensureCc3Vault(input: {
   owner: Address;
   wrapper: Address;
+  /** Asset held on Creditcoin for the risk sleeve (never a source-chain address). */
+  riskAsset: Address;
   deployers: VaultDeployers;
   createVault: (wrapper: Address) => Promise<`0x${string}`>;
 }): Promise<Address> {
   const stored = readStoredAddress(vaultStorageKey(input.owner));
-  if (stored && await hasCode(stored)) return stored;
+  if (stored && await isMatchingVault(stored, input.wrapper, input.riskAsset)) return stored;
 
   const factoryVault = await readContract(wagmiConfig, {
     abi: vaultFactoryAbi,
@@ -64,13 +84,7 @@ export async function ensureCc3Vault(input: {
   });
 
   if (factoryVault !== zeroAddress) {
-    const stableAsset = await readContract(wagmiConfig, {
-      abi: vaultAbi,
-      address: factoryVault,
-      functionName: 'stableAsset',
-      chainId: creditcoinCc3.id,
-    });
-    if (stableAsset.toLowerCase() === input.wrapper.toLowerCase()) {
+    if (await isMatchingVault(factoryVault, input.wrapper, input.riskAsset)) {
       storeAddress(vaultStorageKey(input.owner), factoryVault);
       return factoryVault;
     }
@@ -94,12 +108,13 @@ export async function ensureCc3Vault(input: {
 async function deploySidecarVault(input: {
   owner: Address;
   wrapper: Address;
+  riskAsset: Address;
   deployers: VaultDeployers;
 }): Promise<Address> {
   const hash = await input.deployers.deployVault([
     input.owner,
     input.wrapper,
-    sepoliaContracts.weth,
+    input.riskAsset,
     cc3Contracts.swapAdapter,
   ]);
   const receipt = await waitForTransactionReceipt(wagmiConfig, { hash });

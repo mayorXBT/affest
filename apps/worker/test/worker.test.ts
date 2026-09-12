@@ -64,9 +64,13 @@ describe('AttestationWorker', () => {
 
   it('waits when the source block is not attested yet', async () => {
     const store = new MemoryCoordinationStore();
-    const worker = new AttestationWorker(store, ports({ async getAttestedHeight() { return 122; } }));
+    let attestedHeight = 122;
+    const worker = new AttestationWorker(store, ports({ async getAttestedHeight() { return attestedHeight; } }));
     await worker.runOnce();
     expect((await store.listTriggers())[0]?.status.kind).toBe('waiting-for-attestation');
+    attestedHeight = 123;
+    await worker.runOnce();
+    expect((await store.listTriggers())[0]?.status.kind).toBe('executed');
   });
 
   it('rejects a reverted source transaction without requesting a proof', async () => {

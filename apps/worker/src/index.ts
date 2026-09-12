@@ -98,21 +98,36 @@ export class AttestationWorker {
       const latestBlock = await this.ports.source.latestBlock();
       const cursor = await this.store.getCursor(this.cursorName);
       const fromBlock = cursor === undefined ? this.initialBlock : cursor + 1n;
-      if (fromBlock > latestBlock) {
-        this.status = 'idle';
-        this.lastRunAt = new Date();
-        return;
-      }
-      const signals = await this.ports.source.listSignals(fromBlock);
+      const signals = fromBlock <= latestBlock
+        ? await this.ports.source.listSignals(fromBlock)
+        : [];
       this.logger.info('worker.scan', { fromBlock: Number(fromBlock), latestBlock: Number(latestBlock), signals: signals.length });
+      const processedIds = new Set<string>();
       for (const signal of signals) {
-          const trigger = await this.store.upsertTrigger({
-            strategyId: signal.strategyId,
-            sourceChain: 'ethereum-sepolia',
-            transactionHash: signal.transactionHash,
-            logIndex: signal.logIndex,
-            ...(signal.user ? { ownerWallet: signal.user } : {}),
-          });
+        const trigger = await this.store.upsertTrigger({
+          strategyId: signal.strategyId,
+          sourceChain: 'ethereum-sepolia',
+          transactionHash: signal.transactionHash,
+          logIndex: signal.logIndex,
+          ...(signal.user ? { ownerWallet: signal.user } : {}),
+        });
+        await this.processTrigger(trigger);
+        processedIds.add(trigger.id);
+        this.processedTriggers += 1;
+      }
+
+      // Attestation is asynchronous. A trigger may be persisted as waiting
+      // after the source scan has advanced, so revisit all non-terminal
+      // triggers on every poll instead of relying on the source log appearing
+      // again (it will not).
+      const pending = (await this.store.listTriggers()).filter((trigger) => {
+        if (processedIds.has(trigger.id)) return false;
+        return trigger.status.kind === 'detected'
+          || trigger.status.kind === 'source-confirmed'
+          || trigger.status.kind === 'waiting-for-attestation'
+          || trigger.status.kind === 'proof-ready';
+      });
+      for (const trigger of pending) {
         await this.processTrigger(trigger);
         this.processedTriggers += 1;
       }

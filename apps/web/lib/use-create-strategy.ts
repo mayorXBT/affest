@@ -5,7 +5,7 @@ import { useSwitchChain, useWalletClient, useWriteContract } from 'wagmi';
 import { readContract, waitForTransactionReceipt } from 'wagmi/actions';
 import { vaultBytecode, wrappedNativeBytecode } from '@/lib/bytecode';
 import { cc3AddChainParams, creditcoinCc3, wagmiConfig } from '@/lib/chain';
-import { cc3Contracts, sepoliaContracts, strategyManagerAbi, vaultAbi, vaultFactoryAbi, wrappedNativeAbi } from '@/lib/contracts';
+import { cc3Contracts, legacyDemoTokens, sepoliaContracts, strategyManagerAbi, vaultAbi, vaultFactoryAbi, wrappedNativeAbi } from '@/lib/contracts';
 import { useCc3Holdings } from '@/lib/use-cc3';
 import { ensureCc3Vault, ensureWrappedTctc, type VaultDeployers } from '@/lib/vault-setup';
 
@@ -51,15 +51,20 @@ export function useCreateStrategy() {
     }
     const wrapper = await ensureWrappedTctc(deployers());
     holdings.rememberWrapper(wrapper);
+    // This is a Creditcoin-side demo token. The Sepolia WETH address is only
+    // valid as the source-chain trigger asset and must never be used in CC3
+    // vault/strategy asset slots.
+    const riskAsset = legacyDemoTokens.risk;
     const vault = await ensureCc3Vault({
       owner: holdings.address,
       wrapper,
+      riskAsset,
       deployers: deployers(),
       createVault: (stable) => writeContractAsync({
         abi: vaultFactoryAbi,
         address: cc3Contracts.vaultFactory,
         functionName: 'createVault',
-        args: [stable, sepoliaContracts.weth, cc3Contracts.swapAdapter],
+        args: [stable, riskAsset, cc3Contracts.swapAdapter],
       }),
     });
     holdings.rememberVault(vault);
@@ -70,7 +75,7 @@ export function useCreateStrategy() {
       args: [{
         vault,
         stableAsset: wrapper,
-        riskAsset: sepoliaContracts.weth,
+        riskAsset,
         triggerAsset: input.trigger === 'TCTC' ? wrapper : sepoliaContracts.weth,
         minimumTriggerAmount: parseUnits(minimum, 18),
         signalType: 1,

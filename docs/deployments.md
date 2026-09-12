@@ -49,3 +49,16 @@ Read-only verification completed after deployment:
 - RPC bytecode is non-empty at every listed address.
 - `AffestStrategyManager.executor()` equals `AffestExecutor`.
 - `AffestAttestationVerifier.authorizedCaller()` equals `AffestExecutor`.
+
+## Asset-chain boundary
+
+The Sepolia WETH address is used only as the `PortfolioSignal` trigger asset.
+It must not be placed in a Creditcoin vault or strategy asset slot. New
+strategies created by the dashboard use the CC3 demo risk token above for the
+risk sleeve and retain Sepolia WETH only as the source-chain trigger asset.
+
+Strategies created before this correction may contain the Sepolia WETH address
+as their CC3 `riskAsset`. Those strategies cannot simulate a rebalance because
+the address has no ERC-20 bytecode on CC3. Create a new strategy after the
+dashboard redeploy, then set the worker's `WORKER_STRATEGY_ID` to that new
+on-chain ID before emitting a fresh source signal.

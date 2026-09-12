@@ -17,7 +17,7 @@ import { type AffestAssetId, assetById } from '@/lib/assets';
 import { formatUsd, usdFromAmount, useSpotPrices } from '@/lib/prices';
 import { vaultBytecode, wrappedNativeBytecode } from '@/lib/bytecode';
 import { cc3AddChainParams, creditcoinCc3, sepolia, sepoliaAddChainParams, wagmiConfig } from '@/lib/chain';
-import { cc3Contracts, sepoliaContracts, vaultAbi, vaultFactoryAbi, wethAbi, wrappedNativeAbi } from '@/lib/contracts';
+import { cc3Contracts, legacyDemoTokens, sepoliaContracts, vaultAbi, vaultFactoryAbi, wethAbi, wrappedNativeAbi } from '@/lib/contracts';
 import { formatAmount, useCc3Holdings } from '@/lib/use-cc3';
 import { ensureCc3Vault, ensureWrappedTctc, type VaultDeployers } from '@/lib/vault-setup';
 
@@ -69,12 +69,13 @@ export function HoldingsTable() {
     const vault = await ensureCc3Vault({
       owner: holdings.address,
       wrapper,
+      riskAsset: legacyDemoTokens.risk,
       deployers: deployers(),
       createVault: (stable) => writeContractAsync({
         abi: vaultFactoryAbi,
         address: cc3Contracts.vaultFactory,
         functionName: 'createVault',
-        args: [stable, sepoliaContracts.weth, cc3Contracts.swapAdapter],
+        args: [stable, legacyDemoTokens.risk, cc3Contracts.swapAdapter],
       }),
     });
     holdings.rememberVault(vault);
