@@ -7,7 +7,7 @@ client that supports the current HTTP transport.
 ## Local server
 
 ```powershell
-pnpm --filter @affest/mcp build
+pnpm --filter @affest/mcp... build
 pnpm --filter @affest/mcp start
 ```
 
@@ -15,6 +15,21 @@ The process prints a local CLI token. Open Affest `/agents`, connect a wallet, a
 
 The endpoint is `http://localhost:8787/mcp`. Health is available at
 `/health`.
+
+### Render service
+
+Create the MCP service from the repository root. Set the build command to
+build the MCP package and its workspace dependencies:
+
+```text
+pnpm install --frozen-lockfile && pnpm --filter @affest/mcp... build
+```
+
+Set the start command to:
+
+```text
+pnpm --filter @affest/mcp start
+```
 
 Generate a credential through the wallet-signature challenge on the Agents
 page. The raw token is returned once. The MCP service stores only an
