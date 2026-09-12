@@ -23,6 +23,11 @@ reliable CC3 DEX route was not confirmed.
 The live proof flow remains a testnet integration. Do not treat preview
 balances, demo swaps, or testnet deployments as financial infrastructure.
 
+## Judge materials
+
+- [Attestcoin Protocol Integration Summary](https://affest.cefo.dev/affest-summary.pdf)
+- [Affest Project Deck / Whitepaper](https://affest.cefo.dev/affest-whitepaper.pdf)
+
 ## Repository layout
 
 ```text
