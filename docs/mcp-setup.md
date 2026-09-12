@@ -18,9 +18,22 @@ The endpoint is `http://localhost:8787/mcp`. Health is available at
 
 Generate a credential through the wallet-signature challenge on the Agents
 page. The raw token is returned once. The MCP service stores only an
-HMAC-SHA256 hash. Set `DATABASE_URL` to the Supabase Postgres connection string
-to persist credentials across Render restarts; without it, credentials remain
-in memory.
+HMAC-SHA256 hash. Set `DATABASE_URL` to a managed PostgreSQL connection string
+from Supabase, Neon, or another PostgreSQL provider to persist credentials
+across Render restarts. Without it, credentials remain in memory.
+
+### Neon on Render
+
+1. Create a Neon project and database.
+2. Copy the pooled connection string from Neon. Keep the `sslmode=require`
+   parameter.
+3. Add the connection string to the Render MCP service as `DATABASE_URL`.
+4. Keep the existing `MCP_TOKEN_HASH_SECRET` value unchanged. Changing it
+   prevents existing bearer tokens from authenticating.
+5. Redeploy the MCP service.
+
+The MCP server creates the `affest_mcp_credentials` table on startup. You do
+not need to run a separate migration for credential persistence.
 
 ```powershell
 Invoke-RestMethod http://localhost:8787/credentials -Method Post `
