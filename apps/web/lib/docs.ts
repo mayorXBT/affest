@@ -17,6 +17,7 @@ export const docsNav = [
   {
     label: 'Protocol',
     items: [
+      { href: '/docs/attestcoin', title: 'Attestcoin summary' },
       { href: '/docs/proofs', title: 'Proofs' },
       { href: '/docs/mcp', title: 'MCP agents' },
       { href: '/docs/chatgpt', title: 'ChatGPT' },

@@ -115,6 +115,9 @@ export default function DocsHomePage() {
         <DocsCard href="/docs/how-it-works" title="How it works">
           The Sepolia to Attestcoin to Creditcoin path, and who is trusted.
         </DocsCard>
+        <DocsCard href="/docs/attestcoin" title="Attestcoin summary">
+          A plain-language explanation of the proof gate and what it protects.
+        </DocsCard>
         <DocsCard href="/docs/strategies" title="Strategies">
           Create a mix, set an amount, open View, edit the canvas later.
         </DocsCard>

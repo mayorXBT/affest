@@ -62,6 +62,12 @@ pnpm --filter @affest/worker proof:inspect`}</pre>
         Deployed emitter and verifier addresses are on <Link href="/docs/chains">Chains and contracts</Link>.
       </p>
 
+      <DocsCallout title="New to the protocol?">
+        <p>
+          Start with the <Link href="/docs/attestcoin">Attestcoin integration summary</Link> for the plain-language version of this flow.
+        </p>
+      </DocsCallout>
+
       <DocsCards>
         <DocsCard href="/docs/how-it-works" title="How it works">
           Why the dashboard is not allowed to turn a log into a vault action.
