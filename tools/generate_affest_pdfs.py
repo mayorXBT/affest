@@ -15,6 +15,7 @@ from reportlab.platypus import (
     Spacer,
     Table,
     TableStyle,
+    Flowable,
 )
 
 
@@ -49,10 +50,67 @@ styles.add(ParagraphStyle(name="CellA", fontName="Helvetica", fontSize=8.7, lead
 styles.add(ParagraphStyle(name="CellStrong", fontName="Helvetica-Bold", fontSize=8.7, leading=12, textColor=PAPER))
 styles.add(ParagraphStyle(name="CellAccent", fontName="Helvetica-Bold", fontSize=8.7, leading=12, textColor=LIME))
 styles.add(ParagraphStyle(name="FooterA", fontName="Helvetica", fontSize=7.5, leading=9, textColor=MUTED_2))
+styles.add(ParagraphStyle(name="LightH1", fontName="Helvetica-Bold", fontSize=22, leading=25, textColor=colors.HexColor("#142017"), spaceAfter=7))
+styles.add(ParagraphStyle(name="LightH2", fontName="Helvetica-Bold", fontSize=11.5, leading=14, textColor=colors.HexColor("#142017"), spaceBefore=6, spaceAfter=4))
+styles.add(ParagraphStyle(name="LightBody", fontName="Helvetica", fontSize=9.2, leading=12.5, textColor=colors.HexColor("#4c5b52"), spaceAfter=5))
+styles.add(ParagraphStyle(name="LightStrong", fontName="Helvetica-Bold", fontSize=9.2, leading=12.5, textColor=colors.HexColor("#142017"), spaceAfter=4))
+styles.add(ParagraphStyle(name="LightSmall", fontName="Helvetica", fontSize=7.4, leading=9.5, textColor=colors.HexColor("#68776d"), spaceAfter=3))
+styles.add(ParagraphStyle(name="LightLabel", fontName="Helvetica-Bold", fontSize=7.4, leading=9, textColor=colors.HexColor("#6a8a18"), tracking=1.1, spaceAfter=3))
+styles.add(ParagraphStyle(name="LightCell", fontName="Helvetica", fontSize=7.6, leading=10, textColor=colors.HexColor("#4c5b52")))
+styles.add(ParagraphStyle(name="LightCellStrong", fontName="Helvetica-Bold", fontSize=7.6, leading=10, textColor=colors.HexColor("#142017")))
+styles.add(ParagraphStyle(name="LightCellAccent", fontName="Helvetica-Bold", fontSize=7.6, leading=10, textColor=colors.HexColor("#55740d")))
 
 
 def P(text, style="BodyA"):
     return Paragraph(text, styles[style])
+
+
+def LP(text, style="LightBody"):
+    return Paragraph(text, styles[style])
+
+
+class AffestMark(Flowable):
+    def __init__(self, size=25, label=True):
+        super().__init__()
+        self.size = size
+        self.label = label
+        self.width = size + (59 if label else 0)
+        self.height = size
+
+    def draw(self):
+        c = self.canv
+        s = self.size
+        c.saveState()
+        c.setStrokeColor(colors.HexColor("#6f9716"))
+        c.setLineWidth(1.8)
+        c.rect(1, 1, s - 2, s - 2, fill=0, stroke=1)
+        c.setFillColor(colors.HexColor("#b6d84a"))
+        c.circle(s / 2, s / 2, 3.1, fill=1, stroke=0)
+        c.restoreState()
+        if self.label:
+            c.setFillColor(colors.HexColor("#142017"))
+            c.setFont("Helvetica-Bold", 16)
+            c.drawString(s + 9, 5, "Affest")
+
+
+class LightDoc(BaseDocTemplate):
+    def __init__(self, filename):
+        super().__init__(str(filename), pagesize=A4, leftMargin=16 * mm, rightMargin=16 * mm, topMargin=13 * mm, bottomMargin=13 * mm, title="Affest Attestcoin Integration Summary")
+        frame = Frame(self.leftMargin, self.bottomMargin, self.width, self.height, id="light")
+        self.addPageTemplates([PageTemplate(id="light", frames=frame, onPage=self.draw_page)])
+
+    def draw_page(self, canvas, doc):
+        canvas.saveState()
+        canvas.setFillColor(colors.white)
+        canvas.rect(0, 0, self.pagesize[0], self.pagesize[1], fill=1, stroke=0)
+        canvas.setStrokeColor(colors.HexColor("#dce5d5"))
+        canvas.setLineWidth(0.6)
+        canvas.line(self.leftMargin, 9 * mm, self.pagesize[0] - self.rightMargin, 9 * mm)
+        canvas.setFillColor(colors.HexColor("#77857a"))
+        canvas.setFont("Helvetica", 7)
+        canvas.drawString(self.leftMargin, 5 * mm, "AFFEST  /  ATTESTCOIN PROTOCOL INTEGRATION")
+        canvas.drawRightString(self.pagesize[0] - self.rightMargin, 5 * mm, "BUIDL CTC 2026 FALL")
+        canvas.restoreState()
 
 
 def logo(size=20):
@@ -192,6 +250,79 @@ def build_summary(path):
     story.append(P("Affest's Attestcoin verification path is real and contract-enforced. The CC3 swap adapter is a labelled demo adapter while reliable, documented CC3 DEX liquidity is unavailable. The demo never presents that adapter as a production exchange.", "BodyA"))
     story.append(P("Judge takeaway: the AI can suggest and coordinate, but it cannot manufacture the cross-chain fact or bypass the user's on-chain limits.", "BodyStrong"))
     doc.build(story)
+
+
+def build_summary(path):
+    """One-page, white-background judge handout using the production logo mark."""
+    doc = LightDoc(path)
+    story = [
+        AffestMark(25),
+        Spacer(1, 7),
+        LP("ATTESTCOIN PROTOCOL INTEGRATION", "LightLabel"),
+        LP("Affest verifies the fact before a portfolio can act.", "LightH1"),
+        LP("Affest lets an AI agent help manage a portfolio without giving that agent unlimited control. When something happens on Ethereum, Affest asks Attestcoin for cryptographic proof. Creditcoin checks the proof before any strategy action is allowed.", "LightBody"),
+        Spacer(1, 5),
+    ]
+
+    flow = [
+        [LP("01", "LightCellAccent"), LP("<b>Ethereum Sepolia</b><br/>A user creates a PortfolioSignal event.", "LightCell")],
+        [LP("02", "LightCellAccent"), LP("<b>Attestcoin</b><br/>The source transaction is included in an attested block and a proof is built.", "LightCell")],
+        [LP("03", "LightCellAccent"), LP("<b>Creditcoin CC3</b><br/>Affest verifies the proof, receipt, event, user, asset, amount, and signal type.", "LightCell")],
+        [LP("04", "LightCellAccent"), LP("<b>On-chain policy</b><br/>Limits, allocation, expiry, pause, and replay rules are checked.", "LightCell")],
+        [LP("05", "LightCellAccent"), LP("<b>Portfolio action</b><br/>The action is approved by the user or executed within the policy.", "LightCell")],
+    ]
+    flow_table = Table(flow, colWidths=[12 * mm, 158 * mm], rowHeights=[20 * mm] * 5)
+    flow_table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#f5f8f2")),
+        ("BOX", (0, 0), (-1, -1), 0.7, colors.HexColor("#dce5d5")),
+        ("INNERGRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#e2e9df")),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("ALIGN", (0, 0), (0, -1), "CENTER"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 8),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+        ("TOPPADDING", (0, 0), (-1, -1), 5),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+    ]))
+    story += [LP("THE VERIFIED FLOW", "LightLabel"), flow_table, Spacer(1, 8)]
+
+    left = [
+        LP("WHAT ATTESTCOIN PROVES", "LightLabel"),
+        LP("Attestcoin proves that the Ethereum transaction is included in an attested source-chain block. It gives Affest evidence that can be checked on Creditcoin.", "LightBody"),
+        LP("WHAT AFFEST CHECKS AFTER PROOF", "LightLabel"),
+        LP("Affest still checks that the receipt succeeded, the event came from the right contract, the event fields match the strategy, and the source event has not been used before.", "LightBody"),
+    ]
+    right = [
+        LP("WHY THIS MATTERS", "LightLabel"),
+        LP("A worker, database, or AI model can report an observation. None of them can grant permission. The Creditcoin contracts make the final decision.", "LightBody"),
+        LP("SIMPLE SECURITY PROMISE", "LightLabel"),
+        LP("The agent can read, explain, plan, and request. It cannot access private keys, send arbitrary calldata, or bypass the user's limits.", "LightBody"),
+    ]
+    columns = Table([[left, right]], colWidths=[82 * mm, 82 * mm])
+    columns.setStyle(TableStyle([
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 0),
+        ("RIGHTPADDING", (0, 0), (0, -1), 11),
+        ("LEFTPADDING", (1, 0), (1, -1), 11),
+        ("RIGHTPADDING", (1, 0), (1, -1), 0),
+        ("LINEBEFORE", (1, 0), (1, -1), 0.6, colors.HexColor("#dce5d5")),
+    ]))
+    story += [columns, Spacer(1, 6)]
+    story.append(panel_light("JUDGE TAKEAWAY", "An AI portfolio manager can react to a verified event on another blockchain without trusting our backend and without receiving unrestricted access to the user's funds."))
+    story += [Spacer(1, 6), LP("Testnet only. Attestcoin verification is real and contract-enforced. The CC3 swap adapter is a labelled demo adapter while a reliable documented CC3 DEX route is unavailable.", "LightSmall")]
+    doc.build(story)
+
+
+def panel_light(title, body):
+    t = Table([[LP(title, "LightLabel")], [LP(body, "LightStrong")]], colWidths=[170 * mm])
+    t.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#edf7d7")),
+        ("BOX", (0, 0), (-1, -1), 0.8, colors.HexColor("#c7dc91")),
+        ("LEFTPADDING", (0, 0), (-1, -1), 11),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 11),
+        ("TOPPADDING", (0, 0), (-1, -1), 7),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
+    ]))
+    return t
 
 
 def build_whitepaper(path):
