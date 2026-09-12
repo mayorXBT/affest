@@ -5,6 +5,7 @@ export type SourceSignal = {
   readonly strategyId: string;
   readonly transactionHash: string;
   readonly logIndex: number;
+  readonly user?: string;
 };
 
 export type SourceReceipt = {
@@ -25,7 +26,12 @@ export interface AttestationPort {
 
 export interface CreditcoinPort {
   simulateProof(input: { readonly trigger: TriggerRecord; readonly proof: AttestcoinProof }): Promise<{ readonly ok: true } | { readonly ok: false; readonly reason: string }>;
-  submitProof(input: { readonly trigger: TriggerRecord; readonly proof: AttestcoinProof }): Promise<{ readonly transactionHash: string }>;
+  submitProof(input: { readonly trigger: TriggerRecord; readonly proof: AttestcoinProof }): Promise<{
+    readonly transactionHash: string;
+    readonly eventKey: string;
+    readonly automatic: boolean;
+    readonly approvalExpiresAt?: Date;
+  }>;
 }
 
 export type WorkerPorts = {
@@ -100,12 +106,13 @@ export class AttestationWorker {
       const signals = await this.ports.source.listSignals(fromBlock);
       this.logger.info('worker.scan', { fromBlock: Number(fromBlock), latestBlock: Number(latestBlock), signals: signals.length });
       for (const signal of signals) {
-        const trigger = await this.store.upsertTrigger({
-          strategyId: signal.strategyId,
-          sourceChain: 'ethereum-sepolia',
-          transactionHash: signal.transactionHash,
-          logIndex: signal.logIndex,
-        });
+          const trigger = await this.store.upsertTrigger({
+            strategyId: signal.strategyId,
+            sourceChain: 'ethereum-sepolia',
+            transactionHash: signal.transactionHash,
+            logIndex: signal.logIndex,
+            ...(signal.user ? { ownerWallet: signal.user } : {}),
+          });
         await this.processTrigger(trigger);
         this.processedTriggers += 1;
       }
@@ -170,7 +177,17 @@ export class AttestationWorker {
           }
           const submission = await this.ports.creditcoin.submitProof({ trigger, proof: parsedProof });
           trigger = await this.store.transitionTrigger(trigger.id, { kind: 'verified', verifiedAt: new Date(), transactionHash: submission.transactionHash });
-          this.logger.info('trigger.verified', { triggerId: trigger.id, sourceTransaction: redactHash(trigger.transactionHash), destinationTransaction: redactHash(submission.transactionHash) });
+          if (submission.automatic) {
+            trigger = await this.store.transitionTrigger(trigger.id, { kind: 'executed', executedAt: new Date(), transactionHash: submission.transactionHash });
+          } else {
+            trigger = await this.store.transitionTrigger(trigger.id, {
+              kind: 'approval-pending',
+              eventKey: submission.eventKey,
+              requestTransactionHash: submission.transactionHash,
+              expiresAt: submission.approvalExpiresAt ?? new Date(Date.now() + 24 * 60 * 60 * 1000),
+            });
+          }
+          this.logger.info('trigger.verified', { triggerId: trigger.id, sourceTransaction: redactHash(trigger.transactionHash), destinationTransaction: redactHash(submission.transactionHash), automatic: submission.automatic });
           return;
         }
         case 'verified':

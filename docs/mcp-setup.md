@@ -32,8 +32,10 @@ across Render restarts. Without it, credentials remain in memory.
    prevents existing bearer tokens from authenticating.
 5. Redeploy the MCP service.
 
-The MCP server creates the `affest_mcp_credentials` table on startup. You do
-not need to run a separate migration for credential persistence.
+The MCP server creates the `affest_mcp_credentials` and
+`affest_mcp_chatgpt_links` tables on startup. The worker creates its trigger
+and cursor tables when it starts. You do not need to run a separate migration
+for these tables.
 
 ```powershell
 Invoke-RestMethod http://localhost:8787/credentials -Method Post `
@@ -69,10 +71,10 @@ Claude Desktop stdio, from the repo root after build:
 }
 ```
 
-ChatGPT cannot hit localhost. For the hosted service, click **Copy read-only
-connection link** on the Agents page. It creates a ten-minute URL ticket so
-ChatGPT does not need to send a custom `Authorization` header. Treat the link
-like a temporary bearer credential and do not publish it.
+ChatGPT cannot hit localhost. For the hosted service, click **Copy persistent
+read-only connection link** on the Agents page. The URL does not need a custom
+`Authorization` header, and it remains valid until you revoke the parent MCP
+credential. Treat the link like a bearer credential and do not publish it.
 
 For local-only testing, tunnel 8787 over HTTPS and inject the bearer on the
 tunnel:
@@ -102,3 +104,10 @@ responses advertise the public `/mcp` URL rather than `127.0.0.1`. The live
 Agents page uses a short-lived, origin-bound wallet signature challenge to
 issue credentials remotely. `MCP_BOOTSTRAP_TOKEN` remains for server/operator
 automation only and must never be exposed to the browser.
+
+The MCP service is only the agent interface. Deploy the trigger/proof worker as
+a separate Render Background Worker and give it the server-only chain,
+database, relayer, and contract variables described in
+[`docs/worker-deploy.md`](worker-deploy.md). Without that worker, read tools
+can still work but no Sepolia event will progress to Attestcoin verification
+or a Creditcoin rebalance.

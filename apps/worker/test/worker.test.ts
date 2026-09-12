@@ -26,7 +26,7 @@ function ports(overrides: Partial<SourceChainPort & AttestationPort & Creditcoin
   };
   const creditcoin: CreditcoinPort = {
     async simulateProof() { return { ok: true as const }; },
-    async submitProof() { return { transactionHash: `0x${'aa'.repeat(32)}` }; },
+    async submitProof() { return { transactionHash: `0x${'aa'.repeat(32)}`, eventKey: `0x${'bb'.repeat(32)}`, automatic: true }; },
   };
   return { source: { ...source, ...overrides }, attestation: { ...attestation, ...overrides }, creditcoin: { ...creditcoin, ...overrides } };
 }
@@ -39,7 +39,27 @@ describe('AttestationWorker', () => {
     await worker.runOnce();
     const triggers = await store.listTriggers();
     expect(triggers).toHaveLength(1);
-    expect(triggers[0]?.status.kind).toBe('verified');
+    expect(triggers[0]?.status.kind).toBe('executed');
+  });
+
+  it('persists approval-pending for approval mode or an over-limit hybrid action', async () => {
+    const store = new MemoryCoordinationStore();
+    const worker = new AttestationWorker(store, ports({
+      async submitProof() {
+        return {
+          transactionHash: `0x${'aa'.repeat(32)}`,
+          eventKey: `0x${'bb'.repeat(32)}`,
+          automatic: false,
+        };
+      },
+    }));
+    await worker.runOnce();
+    const status = (await store.listTriggers())[0]?.status;
+    expect(status?.kind).toBe('approval-pending');
+    if (status?.kind === 'approval-pending') {
+      expect(status.eventKey).toBe(`0x${'bb'.repeat(32)}`);
+      expect(status.requestTransactionHash).toBe(`0x${'aa'.repeat(32)}`);
+    }
   });
 
   it('waits when the source block is not attested yet', async () => {

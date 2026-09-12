@@ -3,6 +3,8 @@ import { z } from 'zod';
 import type { AuthContext, CredentialStore } from './auth.js';
 import { readLiveAccount, readLiveStrategies } from './live.js';
 import { validateStrategy } from '@affest/strategy-engine';
+import type { PostgresWorkerIndex } from './worker-index.js';
+import { encodeFunctionData, isAddress, type Hex } from 'viem';
 
 const success = (data: unknown) => ({
   content: [{ type: 'text' as const, text: JSON.stringify(data, null, 2) }],
@@ -23,6 +25,15 @@ const sourceTransactionInput = z.object({ transactionHash: z.string().regex(/^0x
 const proofInput = z.object({ transactionHash: z.string().regex(/^0x[0-9a-fA-F]{64}$/), chainKey: z.number().int().nonnegative().default(1) });
 const audits: Array<{ at: string; tool: string; userId: string; client: string }> = [];
 const rateBuckets = new Map<string, { startedAt: number; count: number }>();
+const executorAddress = process.env.AFFEST_EXECUTOR_ADDRESS;
+const approveRebalanceAbi = [{ type: 'function', name: 'approveRebalance', stateMutability: 'nonpayable', inputs: [{ name: 'eventKey', type: 'bytes32' }], outputs: [{ name: 'amountOut', type: 'uint256' }] }] as const;
+const eventKeySchema = z.string().regex(/^0x[0-9a-fA-F]{64}$/, 'eventKey must be a 32-byte hex value');
+const approvalInput = z.object({ eventKey: eventKeySchema, idempotencyKey: z.string().min(8).max(128).optional() });
+
+function eventKeyHex(value: string): Hex {
+  if (!/^0x[0-9a-fA-F]{64}$/.test(value)) throw new Error('eventKey must be a 32-byte hex value');
+  return value as Hex;
+}
 
 export function scopeForTool(tool: string): 'read' | 'plan' | 'proof' | 'action' {
   if (tool.startsWith('get_')) return 'read';
@@ -31,7 +42,7 @@ export function scopeForTool(tool: string): 'read' | 'plan' | 'proof' | 'action'
   return 'action';
 }
 
-export function registerServer(auth: AuthContext, credentials: CredentialStore): McpServer {
+export function registerServer(auth: AuthContext, credentials: CredentialStore, workerIndex?: PostgresWorkerIndex): McpServer {
   const server = new McpServer({ name: 'affest-mcp', version: '0.1.0' });
   const record = (tool: string) => {
     const scope = scopeForTool(tool);
@@ -68,19 +79,37 @@ export function registerServer(auth: AuthContext, credentials: CredentialStore):
   });
   server.registerTool('get_pending_actions', { description: 'List pending rebalance actions. Actions remain approval-gated.', inputSchema: emptyInput, outputSchema }, async () => {
     record('get_pending_actions');
-    return success({ actions: [], indexed: false, note: 'The coordination database is not attached to this MCP instance yet.' });
+    const triggers = workerIndex ? await workerIndex.list(auth.userId) : [];
+    const actions = triggers.filter((trigger) => trigger.status === 'approval-pending').map((trigger) => ({
+      triggerId: trigger.id,
+      strategyId: trigger.strategyId,
+      sourceTransactionHash: trigger.transactionHash,
+      eventKey: typeof trigger.statusPayload.eventKey === 'string' ? trigger.statusPayload.eventKey : null,
+      requestTransactionHash: typeof trigger.statusPayload.requestTransactionHash === 'string' ? trigger.statusPayload.requestTransactionHash : null,
+      expiresAt: typeof trigger.statusPayload.expiresAt === 'string' ? trigger.statusPayload.expiresAt : null,
+    }));
+    return success({ actions, indexed: Boolean(workerIndex), ...(workerIndex ? {} : { note: 'The worker coordination database is not attached to this MCP instance.' }) });
   });
   server.registerTool('get_attestcoin_status', { description: 'Read Attestcoin proof lifecycle status for this account.', inputSchema: emptyInput, outputSchema }, async () => {
     record('get_attestcoin_status');
-    return success({ sourceChain: 'ethereum-sepolia', status: 'not-indexed', verifiedOn: 'Creditcoin CC3 Testnet', note: 'Proof status is available after the worker coordination store is connected.' });
+    const latest = workerIndex ? (await workerIndex.list(auth.userId))[0] : undefined;
+    return success({ sourceChain: 'ethereum-sepolia', status: latest?.status ?? 'not-indexed', verifiedOn: 'Creditcoin CC3 Testnet', ...(latest ? { sourceTransactionHash: latest.transactionHash, details: latest.statusPayload } : { note: 'Proof status is available after the worker coordination store is connected.' }) });
   });
   server.registerTool('get_trigger_history', { description: 'List source-chain trigger history for this account.', inputSchema: emptyInput, outputSchema }, async () => {
     record('get_trigger_history');
-    return success({ triggers: [], indexed: false });
+    const triggers = workerIndex ? await workerIndex.list(auth.userId) : [];
+    return success({ triggers, indexed: Boolean(workerIndex) });
   });
   server.registerTool('get_execution_history', { description: 'List Creditcoin execution history for this account.', inputSchema: emptyInput, outputSchema }, async () => {
     record('get_execution_history');
-    return success({ executions: [], indexed: false });
+    const triggers = workerIndex ? await workerIndex.list(auth.userId) : [];
+    const executions = triggers.filter((trigger) => trigger.status === 'executed').map((trigger) => ({
+      strategyId: trigger.strategyId,
+      sourceTransactionHash: trigger.transactionHash,
+      creditcoinTransactionHash: typeof trigger.statusPayload.transactionHash === 'string' ? trigger.statusPayload.transactionHash : null,
+      status: trigger.status,
+    }));
+    return success({ executions, indexed: Boolean(workerIndex) });
   });
   server.registerTool('get_strategy', { description: 'Read one live CC3 strategy by id.', inputSchema: strategyInput, outputSchema }, async (args) => {
     record('get_strategy');
@@ -127,39 +156,60 @@ export function registerServer(auth: AuthContext, credentials: CredentialStore):
     record('check_strategy_conditions');
     const strategies = await readLiveStrategies(auth.userId);
     if (!strategies.some((item) => item.id === args.strategyId)) return failure('strategy not found for this wallet');
-    return success({ strategyId: args.strategyId, eligible: false, reason: 'No verified Attestcoin trigger is indexed for this strategy.' });
+    const trigger = workerIndex ? (await workerIndex.list(auth.userId)).find((item) => item.strategyId === args.strategyId) : undefined;
+    return success({ strategyId: args.strategyId, eligible: trigger?.status === 'verified' || trigger?.status === 'approval-pending' || trigger?.status === 'executed', status: trigger?.status ?? 'not-indexed', ...(trigger ? { details: trigger.statusPayload } : { reason: 'No verified Attestcoin trigger is indexed for this strategy.' }) });
   });
   server.registerTool('find_source_transaction', { description: 'Find a Sepolia source transaction by hash and optional log index.', inputSchema: sourceTransactionInput, outputSchema }, async (args) => {
     record('find_source_transaction');
-    return success({ sourceChain: 'ethereum-sepolia', transactionHash: args.transactionHash, logIndex: args.logIndex ?? null, found: false, indexed: false });
+    const found = workerIndex ? await workerIndex.find(auth.userId, args.transactionHash) : undefined;
+    return success({ sourceChain: 'ethereum-sepolia', transactionHash: args.transactionHash, logIndex: args.logIndex ?? found?.logIndex ?? null, found: Boolean(found), indexed: Boolean(workerIndex), ...(found ? { status: found.status, details: found.statusPayload } : {}) });
   });
   server.registerTool('check_source_transaction', { description: 'Check source receipt and PortfolioSignal event readiness.', inputSchema: sourceTransactionInput, outputSchema }, async (args) => {
     record('check_source_transaction');
-    return success({ sourceChain: 'ethereum-sepolia', transactionHash: args.transactionHash, ready: false, reason: 'Source monitor is not attached to this MCP instance.' });
+    const found = workerIndex ? await workerIndex.find(auth.userId, args.transactionHash) : undefined;
+    const readyStatuses = ['source-confirmed', 'waiting-for-attestation', 'proof-ready', 'verified', 'approval-pending', 'executed'];
+    return success({ sourceChain: 'ethereum-sepolia', transactionHash: args.transactionHash, ready: Boolean(found && readyStatuses.includes(found.status)), indexed: Boolean(workerIndex), ...(found ? { status: found.status } : { reason: 'Source monitor is not attached to this MCP instance.' }) });
   });
   server.registerTool('check_attestation_readiness', { description: 'Check whether Attestcoin can currently prove a source transaction.', inputSchema: proofInput, outputSchema }, async (args) => {
     record('check_attestation_readiness');
-    return success({ transactionHash: args.transactionHash, chainKey: args.chainKey, ready: false, reason: 'Attestation worker status is not attached to this MCP instance.' });
+    const trigger = workerIndex ? await workerIndex.find(auth.userId, args.transactionHash) : undefined;
+    const ready = Boolean(trigger && ['proof-ready', 'verified', 'approval-pending', 'executed'].includes(trigger.status));
+    return success({ transactionHash: args.transactionHash, chainKey: args.chainKey, ready, indexed: Boolean(workerIndex), ...(trigger ? { status: trigger.status, details: trigger.statusPayload } : { reason: 'The worker has not indexed this source transaction.' }) });
   });
   server.registerTool('build_attestcoin_proof', { description: 'Build an Attestcoin proof when the worker integration is available.', inputSchema: proofInput, outputSchema }, async (args) => {
     record('build_attestcoin_proof');
-    return failure(`proof builder is not connected for ${args.transactionHash}`);
+    const trigger = workerIndex ? await workerIndex.find(auth.userId, args.transactionHash) : undefined;
+    if (!trigger) return failure('source transaction is not indexed for this wallet');
+    if (!trigger.proof) return failure(`proof is not ready; current status is ${trigger.status}`);
+    return success({ transactionHash: args.transactionHash, chainKey: args.chainKey, proof: trigger.proof, persistedByWorker: true });
   });
   server.registerTool('simulate_proof_verification', { description: 'Simulate Creditcoin verification for a proof reference without submitting a transaction.', inputSchema: z.object({ proofReference: z.string().min(1) }), outputSchema }, async (args) => {
     record('simulate_proof_verification');
-    return success({ proofReference: args.proofReference, simulated: false, verified: false, reason: 'Creditcoin proof simulator is not attached to this MCP instance.' });
+    const trigger = workerIndex ? await workerIndex.find(auth.userId, args.proofReference) : undefined;
+    const verified = Boolean(trigger && ['verified', 'approval-pending', 'executed'].includes(trigger.status));
+    return success({ proofReference: args.proofReference, simulated: Boolean(trigger), verified, indexed: Boolean(workerIndex), ...(trigger ? { status: trigger.status, details: trigger.statusPayload } : { reason: 'No worker simulation record is indexed for this proof reference.' }) });
   });
   server.registerTool('request_rebalance', { description: 'Request a guarded rebalance proposal. Never signs or submits.', inputSchema: idempotentActionInput, outputSchema }, async (args) => {
     record('request_rebalance');
-    return success({ strategyId: args.strategyId, requestId: args.idempotencyKey ?? null, status: 'approval-required', requiresApproval: true, unsigned: true });
+    const trigger = workerIndex ? (await workerIndex.list(auth.userId)).find((item) => item.strategyId === args.strategyId) : undefined;
+    if (!trigger) return success({ strategyId: args.strategyId, requestId: args.idempotencyKey ?? null, status: 'waiting-for-verified-trigger', requiresApproval: true, unsigned: true, note: 'The worker has not indexed a proof-backed trigger for this strategy.' });
+    return success({ strategyId: args.strategyId, requestId: args.idempotencyKey ?? null, status: trigger.status, requiresApproval: trigger.status === 'approval-pending', unsigned: true, sourceTransactionHash: trigger.transactionHash, details: trigger.statusPayload });
   });
-  server.registerTool('prepare_approval_transaction', { description: 'Prepare an unsigned user approval transaction for a proposed rebalance.', inputSchema: idempotentActionInput, outputSchema }, async (args) => {
+  server.registerTool('prepare_approval_transaction', { description: 'Prepare an unsigned user approval transaction for a proof-verified pending rebalance.', inputSchema: approvalInput, outputSchema }, async (args) => {
     record('prepare_approval_transaction');
-    return success({ strategyId: args.strategyId, requestId: args.idempotencyKey ?? null, unsigned: true, readyToSign: false, reason: 'No proposed action is indexed for this strategy.' });
+    if (!executorAddress || !isAddress(executorAddress)) return failure('AFFEST_EXECUTOR_ADDRESS is not configured on the MCP service');
+    const pending = workerIndex ? (await workerIndex.list(auth.userId)).find((item) => item.status === 'approval-pending' && item.statusPayload.eventKey === args.eventKey) : undefined;
+    if (!pending) return failure('approval-pending action not found for this wallet and eventKey');
+    const data = encodeFunctionData({ abi: approveRebalanceAbi, functionName: 'approveRebalance', args: [eventKeyHex(args.eventKey)] });
+    return success({ unsigned: true, readyToSign: true, to: executorAddress, data, value: '0', eventKey: args.eventKey, requestId: args.idempotencyKey ?? null });
   });
-  server.registerTool('execute_authorized_rebalance', { description: 'Execute only an on-chain-authorized rebalance. This server never signs.', inputSchema: idempotentActionInput, outputSchema }, async () => {
+  server.registerTool('execute_authorized_rebalance', { description: 'Prepare the unsigned owner approval call for a proof-verified pending rebalance. This server never signs.', inputSchema: approvalInput, outputSchema }, async (args) => {
     record('execute_authorized_rebalance');
-    return failure('execution is unavailable until a verified proof-backed action and authorized executor are connected');
+    if (!executorAddress || !isAddress(executorAddress)) return failure('AFFEST_EXECUTOR_ADDRESS is not configured on the MCP service');
+    const pending = workerIndex ? (await workerIndex.list(auth.userId)).find((item) => item.status === 'approval-pending' && item.statusPayload.eventKey === args.eventKey) : undefined;
+    if (!pending) return failure('approval-pending action not found for this wallet and eventKey');
+    const data = encodeFunctionData({ abi: approveRebalanceAbi, functionName: 'approveRebalance', args: [eventKeyHex(args.eventKey)] });
+    return success({ unsigned: true, readyToSign: true, to: executorAddress, data, value: '0', eventKey: args.eventKey, note: 'Review the pending action, then sign this call with the strategy owner wallet.' });
   });
   server.registerTool('pause_strategy', { description: 'Describe how to pause. Does not sign.', inputSchema: strategyInput, outputSchema }, async (args) => {
     record('pause_strategy');
