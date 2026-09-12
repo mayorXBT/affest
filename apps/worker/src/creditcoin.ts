@@ -27,7 +27,12 @@ const strategyManagerAbi = [{
 
 const verifierAbi = [{ type: 'function', name: 'authorizedCaller', stateMutability: 'view', inputs: [], outputs: [{ type: 'address' }] }] as const;
 
-const vaultAbi = [{ type: 'function', name: 'swapAdapter', stateMutability: 'view', inputs: [], outputs: [{ type: 'address' }] }] as const;
+const vaultAbi = [
+  { type: 'function', name: 'owner', stateMutability: 'view', inputs: [], outputs: [{ type: 'address' }] },
+  { type: 'function', name: 'stableAsset', stateMutability: 'view', inputs: [], outputs: [{ type: 'address' }] },
+  { type: 'function', name: 'riskAsset', stateMutability: 'view', inputs: [], outputs: [{ type: 'address' }] },
+  { type: 'function', name: 'swapAdapter', stateMutability: 'view', inputs: [], outputs: [{ type: 'address' }] },
+] as const;
 const erc20Abi = [{ type: 'function', name: 'balanceOf', stateMutability: 'view', inputs: [{ name: 'account', type: 'address' }], outputs: [{ type: 'uint256' }] }] as const;
 const executorAbi = [{
   type: 'function', name: 'requestRebalance', stateMutability: 'nonpayable',
@@ -106,13 +111,34 @@ export class ViemCreditcoinPort implements CreditcoinPort {
   private async requestArgs(trigger: TriggerRecord, proof: AttestcoinProof) {
     const strategyId = BigInt(trigger.strategyId);
     const strategy = await this.publicClient.readContract({ abi: strategyManagerAbi, address: this.config.strategyManager, functionName: 'getStrategy', args: [strategyId] });
-    const [stableBalance, riskBalance, adapter] = await Promise.all([
-      this.publicClient.readContract({ abi: erc20Abi, address: strategy.stableAsset, functionName: 'balanceOf', args: [strategy.vault] }),
-      this.publicClient.readContract({ abi: erc20Abi, address: strategy.riskAsset, functionName: 'balanceOf', args: [strategy.vault] }),
+    const [vaultOwner, vaultStableAsset, vaultRiskAsset, adapter] = await Promise.all([
+      this.publicClient.readContract({ abi: vaultAbi, address: strategy.vault, functionName: 'owner' }),
+      this.publicClient.readContract({ abi: vaultAbi, address: strategy.vault, functionName: 'stableAsset' }),
+      this.publicClient.readContract({ abi: vaultAbi, address: strategy.vault, functionName: 'riskAsset' }),
       this.publicClient.readContract({ abi: vaultAbi, address: strategy.vault, functionName: 'swapAdapter' }),
     ]);
+    if (vaultOwner.toLowerCase() !== strategy.owner.toLowerCase()) {
+      throw new Error(`strategy ${strategyId} is attached to vault ${strategy.vault}, owned by ${vaultOwner}, not strategy owner ${strategy.owner}`);
+    }
+    if (vaultStableAsset.toLowerCase() !== strategy.stableAsset.toLowerCase() || vaultRiskAsset.toLowerCase() !== strategy.riskAsset.toLowerCase()) {
+      throw new Error(`strategy ${strategyId} asset mapping does not match its vault configuration`);
+    }
+    const [stableCode, riskCode] = await Promise.all([
+      this.publicClient.getBytecode({ address: strategy.stableAsset }),
+      this.publicClient.getBytecode({ address: strategy.riskAsset }),
+    ]);
+    if (!stableCode || stableCode === '0x') {
+      throw new Error(`stable asset ${strategy.stableAsset} has no ERC-20 contract code on Creditcoin CC3`);
+    }
+    if (!riskCode || riskCode === '0x') {
+      throw new Error(`risk asset ${strategy.riskAsset} has no ERC-20 contract code on Creditcoin CC3; recreate this strategy with the CC3 risk asset address`);
+    }
+    const [stableBalance, riskBalance] = await Promise.all([
+      this.publicClient.readContract({ abi: erc20Abi, address: strategy.stableAsset, functionName: 'balanceOf', args: [strategy.vault] }),
+      this.publicClient.readContract({ abi: erc20Abi, address: strategy.riskAsset, functionName: 'balanceOf', args: [strategy.vault] }),
+    ]);
     const total = stableBalance + riskBalance;
-    if (total === 0n) throw new Error('vault has no assets to rebalance');
+    if (total === 0n) throw new Error('Vault has no assets. Deposit testnet TCTC/ETH before rebalancing.');
     const targetStable = total * BigInt(strategy.stableWeightBps) / 10_000n;
     const stableToRisk = stableBalance > targetStable;
     const rawAmount = stableToRisk ? stableBalance - targetStable : targetStable - stableBalance;

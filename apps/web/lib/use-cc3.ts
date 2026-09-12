@@ -45,7 +45,9 @@ export function useCc3Holdings() {
   });
 
   const factoryVaultAddress = factoryVault.data && factoryVault.data !== zeroAddress ? factoryVault.data : undefined;
-  const vaultAddress = sidecarVault ?? factoryVaultAddress;
+  // The factory vault is the wallet's canonical vault. A sidecar can exist
+  // from an older strategy, but it must not hide funds in the canonical vault.
+  const vaultAddress = factoryVaultAddress ?? sidecarVault;
 
   const vaultNative = useBalance({
     address: vaultAddress,
@@ -66,6 +68,7 @@ export function useCc3Holdings() {
 
   const vaultStable = vaultMeta.data?.[0]?.status === 'success' ? vaultMeta.data[0].result : undefined;
   const wrapper = vaultStable && vaultStable !== zeroAddress ? vaultStable : storedWrapper;
+  const riskAsset = vaultMeta.data?.[1]?.status === 'success' ? vaultMeta.data[1].result : undefined;
 
   useEffect(() => {
     if (wrapper) storeAddress(WRAPPER_KEY, wrapper);
@@ -90,6 +93,15 @@ export function useCc3Holdings() {
     query: { enabled: Boolean(wrapper && vaultAddress) },
   });
 
+  const riskVault = useReadContract({
+    abi: erc20Abi,
+    address: riskAsset,
+    functionName: 'balanceOf',
+    args: vaultAddress ? [vaultAddress] : undefined,
+    chainId: creditcoinCc3.id,
+    query: { enabled: Boolean(riskAsset && vaultAddress) },
+  });
+
   const vaultTctc = (vaultNative.data?.value ?? 0n) + (wrappedVault.data ?? 0n);
   const wrappedTctc = wrappedWallet.data ?? 0n;
 
@@ -105,6 +117,8 @@ export function useCc3Holdings() {
     weth: weth.data ?? 0n,
     wrappedTctc,
     vaultTctc,
+    riskAsset,
+    vaultRisk: riskVault.data ?? 0n,
     vaultAddress,
     wrapper,
     pendingVaultDeposit: wrappedTctc > 0n && Boolean(vaultAddress),
@@ -120,6 +134,7 @@ export function useCc3Holdings() {
       void vaultMeta.refetch();
       void wrappedWallet.refetch();
       void wrappedVault.refetch();
+      void riskVault.refetch();
       if (address) setSidecarVault(readStoredAddress(vaultStorageKey(address)));
       setStoredWrapper(readStoredAddress(WRAPPER_KEY));
     },

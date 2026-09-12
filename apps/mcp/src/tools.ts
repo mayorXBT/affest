@@ -11,9 +11,9 @@ const success = (data: unknown) => ({
   structuredContent: { ok: true, data },
 });
 
-const failure = (error: string) => ({
+const failure = (error: string, data?: unknown) => ({
   content: [{ type: 'text' as const, text: JSON.stringify({ ok: false, error }, null, 2) }],
-  structuredContent: { ok: false, error },
+  structuredContent: { ok: false, error, ...(data === undefined ? {} : { data }) },
 });
 
 const outputSchema = z.object({ ok: z.boolean(), data: z.unknown().optional(), error: z.string().optional() });
@@ -143,21 +143,40 @@ export function registerServer(auth: AuthContext, credentials: CredentialStore, 
     const strategies = await readLiveStrategies(auth.userId);
     const strategy = strategies.find((item) => item.id === args.strategyId);
     if (!strategy) return failure('strategy not found for this wallet');
-    return success({ strategyId: args.strategyId, strategy, unsigned: true, requiresApproval: true, simulated: false, note: 'Swap simulation is not connected to the MCP service.' });
+    if (!strategy.rebalance.possible) return failure(strategy.rebalance.reason ?? 'Rebalance is not possible for this vault.', { strategyId: args.strategyId, vault: strategy.vault, vaultBalances: strategy.vaultBalances, rebalance: strategy.rebalance });
+    return success({ strategyId: args.strategyId, strategy, vaultBalances: strategy.vaultBalances, rebalance: strategy.rebalance, unsigned: true, requiresApproval: true, simulated: false, note: 'Swap simulation is not connected to the MCP service.' });
   });
-  server.registerTool('explain_rebalance', { description: 'Explain when Affest is allowed to rebalance.', inputSchema: emptyInput, outputSchema }, async () => {
+  server.registerTool('explain_rebalance', { description: 'Explain whether a strategy vault can rebalance and why.', inputSchema: strategyInput.partial(), outputSchema }, async (args) => {
     record('explain_rebalance');
+    const strategies = await readLiveStrategies(auth.userId);
+    const strategy = args.strategyId ? strategies.find((item) => item.id === args.strategyId) : strategies[0];
+    if (!strategy) return failure(args.strategyId ? 'strategy not found for this wallet' : 'no active strategy found for this wallet');
     return success({
       explanation: 'Affest rebalances a TCTC/ETH mix only after Creditcoin verifies an Attestcoin proof of a Sepolia PortfolioSignal. The MCP server never signs. Pause remains on-chain and independent of this credential.',
       verifiedSourceRequired: true,
+      strategyId: strategy.id,
+      vault: strategy.vault,
+      vaultBalances: strategy.vaultBalances,
+      rebalance: strategy.rebalance,
     });
   });
   server.registerTool('check_strategy_conditions', { description: 'Check whether a strategy has a verified trigger and may be proposed.', inputSchema: strategyInput, outputSchema }, async (args) => {
     record('check_strategy_conditions');
     const strategies = await readLiveStrategies(auth.userId);
-    if (!strategies.some((item) => item.id === args.strategyId)) return failure('strategy not found for this wallet');
+    const strategy = strategies.find((item) => item.id === args.strategyId);
+    if (!strategy) return failure('strategy not found for this wallet');
     const trigger = workerIndex ? (await workerIndex.list(auth.userId)).find((item) => item.strategyId === args.strategyId) : undefined;
-    return success({ strategyId: args.strategyId, eligible: trigger?.status === 'verified' || trigger?.status === 'approval-pending' || trigger?.status === 'executed', status: trigger?.status ?? 'not-indexed', ...(trigger ? { details: trigger.statusPayload } : { reason: 'No verified Attestcoin trigger is indexed for this strategy.' }) });
+    const triggerEligible = trigger?.status === 'verified' || trigger?.status === 'approval-pending' || trigger?.status === 'executed';
+    const eligible = triggerEligible && strategy.rebalance.possible;
+    return success({
+      strategyId: args.strategyId,
+      eligible,
+      status: trigger?.status ?? 'not-indexed',
+      vaultBalances: strategy.vaultBalances,
+      rebalance: strategy.rebalance,
+      ...(trigger ? { details: trigger.statusPayload } : { reason: 'No verified Attestcoin trigger is indexed for this strategy.' }),
+      ...(!strategy.rebalance.possible ? { reason: strategy.rebalance.reason, nextAction: strategy.rebalance.nextAction } : {}),
+    });
   });
   server.registerTool('find_source_transaction', { description: 'Find a Sepolia source transaction by hash and optional log index.', inputSchema: sourceTransactionInput, outputSchema }, async (args) => {
     record('find_source_transaction');
@@ -191,6 +210,9 @@ export function registerServer(auth: AuthContext, credentials: CredentialStore, 
   });
   server.registerTool('request_rebalance', { description: 'Request a guarded rebalance proposal. Never signs or submits.', inputSchema: idempotentActionInput, outputSchema }, async (args) => {
     record('request_rebalance');
+    const strategy = (await readLiveStrategies(auth.userId)).find((item) => item.id === args.strategyId);
+    if (!strategy) return failure('strategy not found for this wallet');
+    if (!strategy.rebalance.possible) return failure(strategy.rebalance.reason ?? 'Rebalance is not possible for this vault.', { strategyId: args.strategyId, vault: strategy.vault, vaultBalances: strategy.vaultBalances, rebalance: strategy.rebalance });
     const trigger = workerIndex ? (await workerIndex.list(auth.userId)).find((item) => item.strategyId === args.strategyId) : undefined;
     if (!trigger) return success({ strategyId: args.strategyId, requestId: args.idempotencyKey ?? null, status: 'waiting-for-verified-trigger', requiresApproval: true, unsigned: true, note: 'The worker has not indexed a proof-backed trigger for this strategy.' });
     return success({ strategyId: args.strategyId, requestId: args.idempotencyKey ?? null, status: trigger.status, requiresApproval: trigger.status === 'approval-pending', unsigned: true, sourceTransactionHash: trigger.transactionHash, details: trigger.statusPayload });
