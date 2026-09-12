@@ -68,6 +68,8 @@ describe('AttestationWorker', () => {
     const worker = new AttestationWorker(store, ports({ async getAttestedHeight() { return attestedHeight; } }));
     await worker.runOnce();
     expect((await store.listTriggers())[0]?.status.kind).toBe('waiting-for-attestation');
+    await worker.runOnce();
+    expect((await store.listTriggers())[0]?.status.kind).toBe('waiting-for-attestation');
     attestedHeight = 123;
     await worker.runOnce();
     expect((await store.listTriggers())[0]?.status.kind).toBe('executed');

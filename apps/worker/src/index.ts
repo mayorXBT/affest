@@ -163,7 +163,12 @@ export class AttestationWorker {
           const receipt = await this.ports.source.getReceipt(trigger.transactionHash);
           const attestedHeight = await this.ports.attestation.getAttestedHeight(this.chainKey);
           if (attestedHeight < receipt.blockNumber) {
-            trigger = await this.store.transitionTrigger(trigger.id, { kind: 'waiting-for-attestation', nextAttemptAt: new Date(Date.now() + 15_000) });
+            // A persisted waiting trigger is retried on every poll. Do not
+            // transition it to the same state again: stores intentionally
+            // reject self-transitions, and no state change is needed here.
+            if (trigger.status.kind === 'source-confirmed') {
+              trigger = await this.store.transitionTrigger(trigger.id, { kind: 'waiting-for-attestation', nextAttemptAt: new Date(Date.now() + 15_000) });
+            }
             this.logger.info('attestation.waiting', { triggerId: trigger.id, sourceBlock: receipt.blockNumber, attestedHeight });
             return;
           }
