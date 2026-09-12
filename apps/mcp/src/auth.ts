@@ -7,7 +7,6 @@ export type CredentialRecord = {
   readonly name: string;
   readonly scopes: readonly string[];
   readonly hash: string;
-  readonly expiresAt?: number;
   readonly revokedAt?: number;
 };
 
@@ -76,7 +75,6 @@ export class PostgresCredentialPersistence implements CredentialPersistence {
       name: row.name,
       hash: row.credential_hash,
       scopes: row.scopes,
-      ...(row.expires_at ? { expiresAt: row.expires_at.getTime() } : {}),
       ...(row.revoked_at ? { revokedAt: row.revoked_at.getTime() } : {}),
     }));
   }
@@ -87,7 +85,7 @@ export class PostgresCredentialPersistence implements CredentialPersistence {
       `INSERT INTO affest_mcp_credentials (id, user_id, name, credential_hash, scopes, expires_at, revoked_at)
        VALUES ($1, $2, $3, $4, $5, $6, $7)
        ON CONFLICT (id) DO UPDATE SET revoked_at = EXCLUDED.revoked_at`,
-      [record.id, record.userId, record.name, record.hash, record.scopes, record.expiresAt ? new Date(record.expiresAt) : null, record.revokedAt ? new Date(record.revokedAt) : null],
+      [record.id, record.userId, record.name, record.hash, record.scopes, null, record.revokedAt ? new Date(record.revokedAt) : null],
     );
   }
 
@@ -135,11 +133,19 @@ export class CredentialStore {
     await this.restored;
   }
 
-  public async issue(userId: string, name: string, scopes: readonly string[], ttlMs = 30 * 24 * 60 * 60 * 1000): Promise<{ token: string; record: CredentialRecord }> {
+  /**
+   * Issue a revocable credential with no time-based expiry.
+   *
+   * Long-lived credentials are intentional for MCP clients that cannot attach
+   * a bearer header on every request (for example, a ChatGPT connector URL).
+   * Revocation remains the only invalidation mechanism, and the database keeps
+   * the legacy nullable expires_at column for backwards-compatible migrations.
+   */
+  public async issue(userId: string, name: string, scopes: readonly string[]): Promise<{ token: string; record: CredentialRecord }> {
     await this.restored;
     const id = `cred_${randomToken(12)}`;
     const token = `aff_${randomToken(32)}`;
-    const record: CredentialRecord = { id, userId, name, scopes, hash: this.hash(token), expiresAt: Date.now() + ttlMs };
+    const record: CredentialRecord = { id, userId, name, scopes, hash: this.hash(token) };
     this.records.set(id, record);
     await this.persistence?.save(record);
     return { token, record };
@@ -179,7 +185,7 @@ export class CredentialStore {
   }
 
   private authForRecord(record: CredentialRecord): AuthContext | undefined {
-    if (record.revokedAt || (record.expiresAt !== undefined && record.expiresAt <= Date.now())) return undefined;
+    if (record.revokedAt) return undefined;
     return { credentialId: record.id, userId: record.userId, clientName: record.name, scopes: record.scopes };
   }
 

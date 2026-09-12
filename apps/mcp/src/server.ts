@@ -129,7 +129,7 @@ const httpServer = createServer(async (req, res) => {
       challenges.delete(challengeKey(origin, address));
     }
     const issued = await credentials.issue(userId, input.data.name, input.data.scopes);
-    return json(res, 201, { token: issued.token, credentialId: issued.record.id, expiresAt: issued.record.expiresAt, mcp: `${publicMcpBaseUrl}/mcp` });
+    return json(res, 201, { token: issued.token, credentialId: issued.record.id, expiresAt: null, mcp: `${publicMcpBaseUrl}/mcp` });
   }
   if (requestPath === '/credentials/chatgpt-link' && req.method === 'POST') {
     const auth = await credentials.authenticate(req.headers.authorization);
@@ -151,6 +151,7 @@ const httpServer = createServer(async (req, res) => {
   }
   if (!auth) return json(res, 401, { error: 'valid Affest bearer credential required' });
   if (req.method !== 'POST' && req.method !== 'GET' && req.method !== 'DELETE') return json(res, 405, { error: 'method not allowed' });
+  // A fresh transport per request is the SDK's stateless Streamable HTTP mode.
   const transport = new StreamableHTTPServerTransport();
   const server = registerServer(auth, credentials, workerIndex);
   await server.connect(transport as unknown as Transport);

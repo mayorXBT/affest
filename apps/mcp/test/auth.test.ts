@@ -39,6 +39,13 @@ describe('CredentialStore', () => {
     expect(issued.record.hash).not.toBe(issued.token);
   });
 
+  it('keeps issued credentials valid until explicitly revoked', async () => {
+    const store = new CredentialStore('test-secret');
+    const issued = await store.issue('user-1', 'Long-lived MCP client', ['read']);
+    expect(issued.record).not.toHaveProperty('expiresAt');
+    expect(await store.authenticate(`Bearer ${issued.token}`)).toMatchObject({ userId: 'user-1' });
+  });
+
   it('rejects revoked credentials', async () => {
     const store = new CredentialStore('test-secret');
     const issued = await store.issue('user-1', 'Agent', ['read']);
