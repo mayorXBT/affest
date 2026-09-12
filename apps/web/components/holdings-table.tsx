@@ -211,7 +211,7 @@ export function HoldingsTable() {
           <div>
             <p className="eyebrow">Wallet TCTC</p>
             <b className="block text-[17px] tabular">{connected ? formatAmount(holdings.tctc) : '—'}</b>
-            <small className="mt-1 block text-[12px] text-[#778384]">Creditcoin CC3 Testnet</small>
+            <small className="mt-1 block text-[12px] text-[#778384]">Available to deposit</small>
           </div>
           <Sparkline
             values={prices.data?.ctcSpark ?? []}

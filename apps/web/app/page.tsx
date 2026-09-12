@@ -1,6 +1,5 @@
 import { ActivityList } from '@/components/activity-list';
 import { AgentTeaser } from '@/components/agent-panel';
-import { StatusRow } from '@/components/status-row';
 import { StrategyList } from '@/components/strategy-list';
 import { StrategyTemplates } from '@/components/strategy-templates';
 import { ValueCard } from '@/components/value-card';
@@ -8,7 +7,6 @@ import { ValueCard } from '@/components/value-card';
 export default function OverviewPage() {
   return (
     <>
-      <StatusRow />
       <ValueCard />
       <StrategyList />
       <section className="mt-3.5 grid gap-3.5 lg:grid-cols-2">
