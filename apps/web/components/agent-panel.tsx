@@ -180,7 +180,7 @@ export function AgentCredentials() {
       if (typeof url !== 'string') throw new Error('bad chatgpt link');
       setChatgptLink(url);
       await navigator.clipboard.writeText(url);
-      toast('Short-lived ChatGPT read-only link copied');
+      toast('Persistent ChatGPT read-only link copied');
     } catch {
       toast('Could not create a ChatGPT connection link');
     }
@@ -323,10 +323,10 @@ export function AgentCredentials() {
             <div>
               <b className="block text-[12px]">ChatGPT</b>
               <Button variant="outline" size="sm" className="mt-1" onClick={() => void createChatgptLink()}>
-                Copy read-only connection link
+                Copy persistent read-only connection link
               </Button>
               {chatgptLink ? <code className="mt-2 block break-all text-[10px] text-[#829088]">{chatgptLink}</code> : null}
-              <small className="mt-1 block text-[11px] leading-relaxed text-[#829088]">The link expires after 10 minutes and is read-only. Add it to a ChatGPT Developer Mode connector without additional authentication.</small>
+              <small className="mt-1 block text-[11px] leading-relaxed text-[#829088]">The link is read-only and does not expire independently. Revoke the parent credential to disable it, then add it to a ChatGPT Developer Mode connector without additional authentication.</small>
             </div>
             <div>
               <b className="block text-[12px]">Claude Desktop</b>

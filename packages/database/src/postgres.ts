@@ -19,7 +19,7 @@ const statusSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('waiting-for-attestation'), nextAttemptAt: z.coerce.date() }),
   z.object({ kind: z.literal('proof-ready'), proofReference: z.string(), verifiedAt: z.coerce.date() }),
   z.object({ kind: z.literal('verified'), verifiedAt: z.coerce.date(), transactionHash: z.string() }),
-  z.object({ kind: z.literal('approval-pending'), expiresAt: z.coerce.date() }),
+  z.object({ kind: z.literal('approval-pending'), eventKey: z.string(), requestTransactionHash: z.string(), expiresAt: z.coerce.date() }),
   z.object({ kind: z.literal('executed'), executedAt: z.coerce.date(), transactionHash: z.string().default('') }),
   z.object({ kind: z.literal('failed'), reason: z.string(), retryable: z.boolean() }),
   z.object({ kind: z.literal('rejected'), reason: z.string() }),
@@ -32,7 +32,7 @@ function serializeStatus(status: TriggerStatus): unknown {
     case 'waiting-for-attestation': return { kind: status.kind, nextAttemptAt: status.nextAttemptAt.toISOString() };
     case 'proof-ready': return { kind: status.kind, proofReference: status.proofReference, verifiedAt: status.verifiedAt.toISOString() };
     case 'verified': return { kind: status.kind, verifiedAt: status.verifiedAt.toISOString(), transactionHash: status.transactionHash };
-    case 'approval-pending': return { kind: status.kind, expiresAt: status.expiresAt.toISOString() };
+    case 'approval-pending': return { kind: status.kind, eventKey: status.eventKey, requestTransactionHash: status.requestTransactionHash, expiresAt: status.expiresAt.toISOString() };
     case 'executed': return { kind: status.kind, executedAt: status.executedAt.toISOString(), transactionHash: status.transactionHash };
     case 'failed': return status;
     case 'rejected': return status;

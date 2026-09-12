@@ -104,6 +104,8 @@ in a `NEXT_PUBLIC_` variable or in an MCP response.
 Verified chain IDs, RPC requirements, Attestcoin chain keys, precompile details,
 SDK versions, deployed addresses, and CC3 DEX findings are recorded in
 [`docs/research.md`](docs/research.md) and [`docs/deployments.md`](docs/deployments.md).
+The persistent trigger/proof worker is deployed separately; see
+[`docs/worker-deploy.md`](docs/worker-deploy.md).
 
 The browser reads public RPC and contract overrides from the `NEXT_PUBLIC_*`
 entries in `.env.example`. Add the same values to the Vercel project when the

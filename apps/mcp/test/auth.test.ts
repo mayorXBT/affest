@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { CredentialStore, type CredentialPersistence, type CredentialRecord } from '../src/auth.js';
+import { ChatgptLinkStore, CredentialStore, type ChatgptLinkRecord, type CredentialPersistence, type CredentialRecord } from '../src/auth.js';
 
 class MemoryPersistence implements CredentialPersistence {
   public readonly records = new Map<string, CredentialRecord>();
+  public readonly links = new Map<string, ChatgptLinkRecord>();
 
   public async load(): Promise<readonly CredentialRecord[]> {
     return [...this.records.values()];
@@ -17,6 +18,14 @@ class MemoryPersistence implements CredentialPersistence {
     if (!record || record.revokedAt) return false;
     this.records.set(id, { ...record, revokedAt });
     return true;
+  }
+
+  public async loadChatgptLinks(): Promise<readonly ChatgptLinkRecord[]> {
+    return [...this.links.values()];
+  }
+
+  public async saveChatgptLink(record: ChatgptLinkRecord): Promise<void> {
+    this.links.set(record.ticketHash, record);
   }
 
   public async close(): Promise<void> {}
@@ -47,5 +56,17 @@ describe('CredentialStore', () => {
     expect(await secondProcess.revoke(issued.record.id)).toBe(true);
     const thirdProcess = new CredentialStore('test-secret', persistence);
     expect(await thirdProcess.authenticate(`Bearer ${issued.token}`)).toBeUndefined();
+  });
+
+  it('restores a persistent read-only ChatGPT link and disables it when the parent credential is revoked', async () => {
+    const persistence = new MemoryPersistence();
+    const credentials = new CredentialStore('test-secret', persistence);
+    const issued = await credentials.issue('user-1', 'Agent', ['read', 'action']);
+    const firstProcess = new ChatgptLinkStore('test-secret', persistence);
+    const ticket = await firstProcess.issue({ credentialId: issued.record.id, userId: 'user-1', clientName: 'Agent', scopes: ['read', 'action'] });
+    const secondProcess = new ChatgptLinkStore('test-secret', persistence);
+    expect(await secondProcess.authenticate(ticket, credentials)).toMatchObject({ userId: 'user-1', scopes: ['read'] });
+    await credentials.revoke(issued.record.id);
+    expect(await secondProcess.authenticate(ticket, credentials)).toBeUndefined();
   });
 });

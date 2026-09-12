@@ -7,7 +7,8 @@
     "build": "tsc -p tsconfig.build.json",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json",
-    "proof:inspect": "node dist/proof-cli.js"
+    "proof:inspect": "node dist/proof-cli.js",
+    "start": "node dist/runtime.js"
   },
   "dependencies": {
     "@affest/api-contracts": "workspace:*",
@@ -15,8 +16,13 @@
     "@affest/chain-config": "workspace:*",
     "@affest/database": "workspace:*",
     "@gluwa/usc-sdk": "catalog:",
+    "pg": "8.16.3",
     "pino": "catalog:",
     "viem": "catalog:",
     "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@types/node": "24.3.0",
+    "@types/pg": "8.15.5"
   }
 }

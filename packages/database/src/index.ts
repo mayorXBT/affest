@@ -6,7 +6,7 @@ export type TriggerStatus =
   | { readonly kind: 'waiting-for-attestation'; readonly nextAttemptAt: Date }
   | { readonly kind: 'proof-ready'; readonly proofReference: string; readonly verifiedAt: Date }
   | { readonly kind: 'verified'; readonly verifiedAt: Date; readonly transactionHash: string }
-  | { readonly kind: 'approval-pending'; readonly expiresAt: Date }
+  | { readonly kind: 'approval-pending'; readonly eventKey: string; readonly requestTransactionHash: string; readonly expiresAt: Date }
   | { readonly kind: 'executed'; readonly executedAt: Date; readonly transactionHash: string }
   | { readonly kind: 'failed'; readonly reason: string; readonly retryable: boolean }
   | { readonly kind: 'rejected'; readonly reason: string };
@@ -17,6 +17,7 @@ export type TriggerRecord = {
   readonly sourceChain: string;
   readonly transactionHash: string;
   readonly logIndex: number;
+  readonly ownerWallet?: string;
   readonly status: TriggerStatus;
 };
 
@@ -25,6 +26,7 @@ export type TriggerInput = {
   readonly sourceChain: string;
   readonly transactionHash: string;
   readonly logIndex: number;
+  readonly ownerWallet?: string;
 };
 
 export interface CoordinationStore {
