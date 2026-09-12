@@ -176,6 +176,10 @@ export class AttestationWorker {
           }
           await this.store.saveProof(trigger.id, parsedProof);
           trigger = await this.store.transitionTrigger(trigger.id, { kind: 'proof-ready', proofReference: trigger.transactionHash, verifiedAt: new Date() });
+          this.logger.info('proof-ready', {
+            triggerId: trigger.id,
+            sourceTransaction: redactHash(trigger.transactionHash),
+          });
           continue;
         }
         case 'proof-ready': {
@@ -190,6 +194,10 @@ export class AttestationWorker {
             trigger = await this.store.transitionTrigger(trigger.id, { kind: 'failed', reason: simulation.reason, retryable: false });
             return;
           }
+          this.logger.info('creditcoin.submission', {
+            triggerId: trigger.id,
+            sourceTransaction: redactHash(trigger.transactionHash),
+          });
           const submission = await this.ports.creditcoin.submitProof({ trigger, proof: parsedProof });
           trigger = await this.store.transitionTrigger(trigger.id, { kind: 'verified', verifiedAt: new Date(), transactionHash: submission.transactionHash });
           if (submission.automatic) {
