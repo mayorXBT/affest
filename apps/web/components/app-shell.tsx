@@ -13,6 +13,7 @@ import { NetworkChip } from '@/components/network-chip';
 import { WalletButton } from '@/components/wallet-button';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { ThemeToggle } from '@/components/theme-toggle';
 import { copyForPath } from '@/lib/routes';
 import { shortAddress } from '@/lib/format';
 import { cn } from '@/lib/utils';
@@ -116,16 +117,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
 
-      <section className="mx-auto flex min-h-screen w-full max-w-[1360px] flex-col px-4 py-5 sm:px-6 lg:px-10 xl:px-12">
-        <header className="flex min-h-12 items-center justify-between gap-4 border-b border-[#20282a] pb-4">
-          <div className="flex items-start gap-3">
+      <section className="mx-auto flex min-h-screen w-full min-w-0 max-w-[1360px] flex-col px-4 py-5 sm:px-6 lg:px-10 xl:px-12">
+        <header className="flex min-h-12 items-center justify-between gap-2 border-b border-[#20282a] pb-4 sm:gap-4">
+          <div className="flex min-w-0 flex-1 items-start gap-3">
             <MobileNav />
-            <div>
-              <h1 className="m-0 text-[22px] font-semibold tracking-[-0.05em] lg:text-[28px]">{copy?.title}</h1>
-              <p className="mt-1.5 mb-0 text-[12px] text-[#778384]">{copy?.subtitle}</p>
+            <div className="min-w-0">
+              <h1 className="m-0 truncate text-[22px] font-semibold tracking-[-0.05em] lg:text-[28px]">{copy?.title}</h1>
+              <p className="mt-1.5 mb-0 hidden truncate text-[12px] text-[#778384] sm:block">{copy?.subtitle}</p>
             </div>
           </div>
-          <div className="flex shrink-0 items-center gap-2">
+          <div className="flex shrink-0 items-center gap-1 sm:gap-2">
+            <ThemeToggle />
             <ActivityPopover />
             <WalletButton />
           </div>

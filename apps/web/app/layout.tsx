@@ -14,7 +14,14 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(() => { try { const theme = localStorage.getItem('affest.theme'); if (theme === 'light' || theme === 'dark') document.documentElement.dataset.theme = theme; } catch {} })()`,
+          }}
+        />
+      </head>
       <body>
         <WalletProvider>
           <TooltipProvider>

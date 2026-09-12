@@ -199,9 +199,9 @@ export function StrategyBuilder() {
   }
 
   return (
-    <div className="mt-6 grid min-h-[640px] rounded-xl border border-line lg:grid-cols-[1fr_320px]">
-      <section className="canvas-dots relative min-h-[640px] p-5">
-        <div className="mb-8 flex items-center justify-between">
+    <div className="strategy-builder-shell mt-6 grid min-h-[640px] rounded-xl border border-line lg:grid-cols-[1fr_320px]">
+      <section className="strategy-builder-canvas canvas-dots relative min-h-[640px] p-5">
+        <div className="mb-8 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <h2 className="m-0 text-[18px] font-semibold">New strategy</h2>
             <Badge variant="waiting">{created ? 'Created' : 'Draft'}</Badge>
@@ -218,7 +218,7 @@ export function StrategyBuilder() {
           </div>
         </div>
 
-        <div className="absolute top-24 left-10 flex flex-col items-start gap-3">
+        <div className="strategy-builder-controls absolute top-24 left-10 flex flex-col items-start gap-3">
           <div className="relative">
             <button
               type="button"

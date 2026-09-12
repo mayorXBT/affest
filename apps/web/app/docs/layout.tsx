@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/breadcrumb';
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
 import { docsPage } from '@/lib/docs';
+import { ThemeToggle } from '@/components/theme-toggle';
 
 export default function DocsLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname();
@@ -22,8 +23,8 @@ export default function DocsLayout({ children }: { children: ReactNode }) {
     <SidebarProvider defaultOpen>
       <DocsSidebar />
       <SidebarInset>
-        <header className="flex h-14 shrink-0 items-center gap-2 border-b border-sidebar-border">
-          <div className="flex items-center gap-2 px-4">
+        <header className="flex h-14 shrink-0 items-center justify-between gap-2 border-b border-sidebar-border px-2 sm:px-4">
+          <div className="flex min-w-0 items-center gap-2">
             <SidebarTrigger className="-ml-1 md:hidden" />
             <Breadcrumb>
               <BreadcrumbList>
@@ -37,8 +38,9 @@ export default function DocsLayout({ children }: { children: ReactNode }) {
               </BreadcrumbList>
             </Breadcrumb>
           </div>
+          <ThemeToggle />
         </header>
-        <div className="flex flex-1 flex-col gap-4 p-4 pt-0 md:p-10 md:pt-8">
+        <div className="flex min-w-0 flex-1 flex-col gap-4 p-4 pt-0 md:p-10 md:pt-8">
           <article className="mx-auto w-full max-w-3xl">{children}</article>
         </div>
       </SidebarInset>
