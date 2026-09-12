@@ -26,7 +26,6 @@ AFFEST_ATTESTATION_VERIFIER_ADDRESS=<deployed CC3 verifier>
 AFFEST_STRATEGY_MANAGER_ADDRESS=<deployed CC3 strategy manager>
 AFFEST_EXECUTOR_ADDRESS=<deployed CC3 executor>
 RELAYER_PRIVATE_KEY=<dedicated funded relayer key; never expose to Vercel/MCP>
-WORKER_STRATEGY_ID=<active on-chain strategy id, for example 1>
 WORKER_START_BLOCK=<Sepolia deployment block for the source contract>
 WORKER_INTERVAL_MS=15000
 ATTESTCOIN_SOURCE_CHAIN_KEY=1
@@ -35,7 +34,11 @@ ATTESTCOIN_SOURCE_CHAIN_KEY=1
 The worker creates `affest_worker_triggers` and
 `affest_worker_cursors` in Neon on first start. It resumes from the cursor
 after a restart and deduplicates `(source_chain, source_transaction_hash,
-log_index)` before requesting a proof.
+strategy_id, source_transaction_hash, log_index)` before requesting a proof.
+
+The worker matches each `PortfolioSignal` on-chain to every active strategy
+whose owner, trigger asset, signal type, and minimum amount match the event.
+Users do not set a strategy ID in Render.
 
 ## One-time contract role wiring
 

@@ -69,6 +69,8 @@ export class MemoryCoordinationStore implements CoordinationStore {
 
   async upsertTrigger(input: TriggerInput): Promise<TriggerRecord> {
     const existing = [...this.triggers.values()].find((trigger) =>
+      trigger.strategyId === input.strategyId
+      &&
       trigger.sourceChain === input.sourceChain
       && trigger.transactionHash.toLowerCase() === input.transactionHash.toLowerCase()
       && trigger.logIndex === input.logIndex,

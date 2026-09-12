@@ -67,8 +67,11 @@ export class PostgresWorkerStore implements CoordinationStore {
         proof_json jsonb,
         detected_at timestamptz NOT NULL,
         verified_at timestamptz,
-        UNIQUE (source_chain, source_transaction_hash, log_index)
+        UNIQUE (strategy_id, source_chain, source_transaction_hash, log_index)
       );
+      ALTER TABLE affest_worker_triggers DROP CONSTRAINT IF EXISTS affest_worker_triggers_source_chain_source_transaction_hash_log_index_key;
+      CREATE UNIQUE INDEX IF NOT EXISTS affest_worker_trigger_strategy_event_unique
+        ON affest_worker_triggers (strategy_id, source_chain, source_transaction_hash, log_index);
       ALTER TABLE affest_worker_triggers ADD COLUMN IF NOT EXISTS event_key text;
       ALTER TABLE affest_worker_triggers ADD COLUMN IF NOT EXISTS request_transaction_hash text;
       CREATE TABLE IF NOT EXISTS affest_worker_cursors (
@@ -82,8 +85,8 @@ export class PostgresWorkerStore implements CoordinationStore {
   public async upsertTrigger(input: TriggerInput): Promise<TriggerRecord> {
     await this.initialized;
     const existing = await this.pool.query<TriggerRow>(
-      'SELECT id, strategy_id, owner_wallet, source_chain, source_transaction_hash, log_index, status_payload FROM affest_worker_triggers WHERE source_chain = $1 AND source_transaction_hash = $2 AND log_index = $3 LIMIT 1',
-      [input.sourceChain, input.transactionHash, input.logIndex],
+      'SELECT id, strategy_id, owner_wallet, source_chain, source_transaction_hash, log_index, status_payload FROM affest_worker_triggers WHERE strategy_id = $1 AND source_chain = $2 AND source_transaction_hash = $3 AND log_index = $4 LIMIT 1',
+      [input.strategyId, input.sourceChain, input.transactionHash, input.logIndex],
     );
     if (existing.rows[0]) return this.toRecord(existing.rows[0]);
     const detectedAt = new Date();
@@ -91,14 +94,14 @@ export class PostgresWorkerStore implements CoordinationStore {
     const inserted = await this.pool.query<TriggerRow>(
       `INSERT INTO affest_worker_triggers (id, strategy_id, owner_wallet, source_chain, source_transaction_hash, log_index, status, status_payload, detected_at)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-       ON CONFLICT (source_chain, source_transaction_hash, log_index) DO NOTHING
+       ON CONFLICT (strategy_id, source_chain, source_transaction_hash, log_index) DO NOTHING
        RETURNING id, strategy_id, owner_wallet, source_chain, source_transaction_hash, log_index, status_payload`,
       [randomUUID(), input.strategyId, input.ownerWallet ?? null, input.sourceChain, input.transactionHash, input.logIndex, detected.kind, serializeStatus(detected), detectedAt],
     );
     if (inserted.rows[0]) return this.toRecord(inserted.rows[0]);
     const raced = await this.pool.query<TriggerRow>(
-      'SELECT id, strategy_id, owner_wallet, source_chain, source_transaction_hash, log_index, status_payload FROM affest_worker_triggers WHERE source_chain = $1 AND source_transaction_hash = $2 AND log_index = $3 LIMIT 1',
-      [input.sourceChain, input.transactionHash, input.logIndex],
+      'SELECT id, strategy_id, owner_wallet, source_chain, source_transaction_hash, log_index, status_payload FROM affest_worker_triggers WHERE strategy_id = $1 AND source_chain = $2 AND source_transaction_hash = $3 AND log_index = $4 LIMIT 1',
+      [input.strategyId, input.sourceChain, input.transactionHash, input.logIndex],
     );
     if (!raced.rows[0]) throw new Error('worker trigger insert race did not return a row');
     return this.toRecord(raced.rows[0]);

@@ -60,5 +60,5 @@ risk sleeve and retain Sepolia WETH only as the source-chain trigger asset.
 Strategies created before this correction may contain the Sepolia WETH address
 as their CC3 `riskAsset`. Those strategies cannot simulate a rebalance because
 the address has no ERC-20 bytecode on CC3. Create a new strategy after the
-dashboard redeploy, then set the worker's `WORKER_STRATEGY_ID` to that new
-on-chain ID before emitting a fresh source signal.
+dashboard redeploy. The worker discovers active strategies on-chain and routes
+signals automatically, so users do not set a per-strategy worker variable.

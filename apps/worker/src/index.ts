@@ -2,10 +2,22 @@ import { parseAttestcoinProof, type AttestcoinProof } from '@affest/api-contract
 import { type CoordinationStore, type TriggerRecord } from '@affest/database';
 
 export type SourceSignal = {
-  readonly strategyId: string;
   readonly transactionHash: string;
   readonly logIndex: number;
   readonly user?: string;
+  readonly asset?: string;
+  readonly amount?: string;
+  readonly signalType?: number;
+  /** @deprecated Kept only for isolated legacy tests and old adapters. */
+  readonly strategyId?: string;
+};
+
+export type ActiveStrategyTrigger = {
+  readonly strategyId: string;
+  readonly owner: string;
+  readonly triggerAsset: string;
+  readonly minimumTriggerAmount: string;
+  readonly signalType: number;
 };
 
 export type SourceReceipt = {
@@ -25,6 +37,7 @@ export interface AttestationPort {
 }
 
 export interface CreditcoinPort {
+  listActiveStrategies(): Promise<readonly ActiveStrategyTrigger[]>;
   simulateProof(input: { readonly trigger: TriggerRecord; readonly proof: AttestcoinProof }): Promise<{ readonly ok: true } | { readonly ok: false; readonly reason: string }>;
   submitProof(input: { readonly trigger: TriggerRecord; readonly proof: AttestcoinProof }): Promise<{
     readonly transactionHash: string;
@@ -103,17 +116,29 @@ export class AttestationWorker {
         : [];
       this.logger.info('worker.scan', { fromBlock: Number(fromBlock), latestBlock: Number(latestBlock), signals: signals.length });
       const processedIds = new Set<string>();
+      const activeStrategies = await this.ports.creditcoin.listActiveStrategies();
       for (const signal of signals) {
-        const trigger = await this.store.upsertTrigger({
-          strategyId: signal.strategyId,
-          sourceChain: 'ethereum-sepolia',
-          transactionHash: signal.transactionHash,
-          logIndex: signal.logIndex,
-          ...(signal.user ? { ownerWallet: signal.user } : {}),
-        });
-        await this.processTrigger(trigger);
-        processedIds.add(trigger.id);
-        this.processedTriggers += 1;
+        const matchingStrategies = signal.strategyId
+          ? activeStrategies.filter((strategy) => strategy.strategyId === signal.strategyId)
+          : activeStrategies.filter((strategy) =>
+            Boolean(signal.user && signal.asset && signal.amount && signal.signalType !== undefined)
+            && strategy.owner.toLowerCase() === signal.user?.toLowerCase()
+            && strategy.triggerAsset.toLowerCase() === signal.asset?.toLowerCase()
+            && strategy.signalType === signal.signalType
+            && BigInt(signal.amount ?? '0') >= BigInt(strategy.minimumTriggerAmount),
+          );
+        for (const strategy of matchingStrategies) {
+          const trigger = await this.store.upsertTrigger({
+            strategyId: strategy.strategyId,
+            sourceChain: 'ethereum-sepolia',
+            transactionHash: signal.transactionHash,
+            logIndex: signal.logIndex,
+            ...(signal.user ? { ownerWallet: signal.user } : { ownerWallet: strategy.owner }),
+          });
+          await this.processTrigger(trigger);
+          processedIds.add(trigger.id);
+          this.processedTriggers += 1;
+        }
       }
 
       // Attestation is asynchronous. A trigger may be persisted as waiting

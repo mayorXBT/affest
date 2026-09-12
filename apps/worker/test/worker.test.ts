@@ -25,6 +25,7 @@ function ports(overrides: Partial<SourceChainPort & AttestationPort & Creditcoin
     async buildProof() { return proof; },
   };
   const creditcoin: CreditcoinPort = {
+    async listActiveStrategies() { return [{ strategyId: 'strategy-1', owner: '0x0000000000000000000000000000000000000001', triggerAsset: '0x0000000000000000000000000000000000000011', minimumTriggerAmount: '1', signalType: 1 }]; },
     async simulateProof() { return { ok: true as const }; },
     async submitProof() { return { transactionHash: `0x${'aa'.repeat(32)}`, eventKey: `0x${'bb'.repeat(32)}`, automatic: true }; },
   };
@@ -40,6 +41,32 @@ describe('AttestationWorker', () => {
     const triggers = await store.listTriggers();
     expect(triggers).toHaveLength(1);
     expect(triggers[0]?.status.kind).toBe('executed');
+  });
+
+  it('routes a source signal to every matching active strategy without an environment strategy id', async () => {
+    const store = new MemoryCoordinationStore();
+    const worker = new AttestationWorker(store, ports({
+      async listSignals() {
+        return [{
+          transactionHash: `0x${'12'.repeat(32)}`,
+          logIndex: 0,
+          user: '0x0000000000000000000000000000000000000001',
+          asset: '0x0000000000000000000000000000000000000011',
+          amount: '100',
+          signalType: 1,
+        }];
+      },
+      async listActiveStrategies() {
+        return [
+          { strategyId: 'strategy-1', owner: '0x0000000000000000000000000000000000000001', triggerAsset: '0x0000000000000000000000000000000000000011', minimumTriggerAmount: '1', signalType: 1 },
+          { strategyId: 'strategy-2', owner: '0x0000000000000000000000000000000000000001', triggerAsset: '0x0000000000000000000000000000000000000011', minimumTriggerAmount: '50', signalType: 1 },
+        ];
+      },
+    }));
+    await worker.runOnce();
+    const triggers = await store.listTriggers();
+    expect(triggers).toHaveLength(2);
+    expect(triggers.map((trigger) => trigger.strategyId).sort()).toEqual(['strategy-1', 'strategy-2']);
   });
 
   it('persists approval-pending for approval mode or an over-limit hybrid action', async () => {

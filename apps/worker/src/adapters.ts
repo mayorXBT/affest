@@ -40,11 +40,7 @@ export class SdkAttestationPort implements AttestationPort {
 export class ViemSepoliaSourcePort implements SourceChainPort {
   private readonly client: PublicClient;
 
-  public constructor(
-    rpcUrl: string,
-    private readonly signalContract: `0x${string}`,
-    private readonly strategyId: string,
-  ) {
+  public constructor(rpcUrl: string, private readonly signalContract: `0x${string}`) {
     this.client = createPublicClient({ chain: sepolia, transport: http(rpcUrl) });
   }
 
@@ -57,10 +53,12 @@ export class ViemSepoliaSourcePort implements SourceChainPort {
     if (fromBlock > toBlock) return [];
     const logs = await this.client.getLogs({ address: this.signalContract, event: signalEvent, fromBlock, toBlock });
     return logs.map((log) => ({
-      strategyId: this.strategyId,
       transactionHash: log.transactionHash,
       logIndex: Number(log.logIndex),
       ...(log.args.user ? { user: log.args.user } : {}),
+      ...(log.args.asset ? { asset: log.args.asset } : {}),
+      ...(log.args.amount !== undefined ? { amount: log.args.amount.toString() } : {}),
+      ...(log.args.signalType !== undefined ? { signalType: log.args.signalType } : {}),
     }));
   }
 

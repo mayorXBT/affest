@@ -2,7 +2,7 @@ import { createPublicClient, createWalletClient, defineChain, http, isAddress, t
 import { privateKeyToAccount } from 'viem/accounts';
 import type { AttestcoinProof } from '@affest/api-contracts';
 import type { TriggerRecord } from '@affest/database';
-import type { CreditcoinPort } from './index.js';
+import type { ActiveStrategyTrigger, CreditcoinPort } from './index.js';
 
 const cc3 = defineChain({
   id: 102031,
@@ -11,7 +11,7 @@ const cc3 = defineChain({
   rpcUrls: { default: { http: ['https://rpc.cc3-testnet.creditcoin.network'] } },
 });
 
-const strategyManagerAbi = [{
+const strategyManagerAbi = [{ type: 'function', name: 'strategyCount', stateMutability: 'view', inputs: [], outputs: [{ type: 'uint256' }] }, {
   type: 'function', name: 'getStrategy', stateMutability: 'view', inputs: [{ name: 'strategyId', type: 'uint256' }], outputs: [{
     type: 'tuple', components: [
       { name: 'owner', type: 'address' }, { name: 'vault', type: 'address' }, { name: 'stableAsset', type: 'address' },
@@ -79,6 +79,20 @@ export class ViemCreditcoinPort implements CreditcoinPort {
     } catch (error: unknown) {
       return { ok: false, reason: error instanceof Error ? error.message : 'Creditcoin simulation failed' };
     }
+  }
+
+  public async listActiveStrategies(): Promise<readonly ActiveStrategyTrigger[]> {
+    const count = await this.publicClient.readContract({ abi: strategyManagerAbi, address: this.config.strategyManager, functionName: 'strategyCount' });
+    const total = Number(count);
+    const ids = Array.from({ length: Math.min(total, 256) }, (_, index) => BigInt(index + 1));
+    const strategies = await Promise.all(ids.map((strategyId) => this.publicClient.readContract({ abi: strategyManagerAbi, address: this.config.strategyManager, functionName: 'getStrategy', args: [strategyId] })));
+    return strategies.flatMap((strategy, index) => strategy.status === 0 ? [{
+      strategyId: ids[index]?.toString() ?? '0',
+      owner: strategy.owner,
+      triggerAsset: strategy.triggerAsset,
+      minimumTriggerAmount: strategy.minimumTriggerAmount.toString(),
+      signalType: strategy.signalType,
+    }] : []);
   }
 
   public async assertRoleWiring(): Promise<void> {

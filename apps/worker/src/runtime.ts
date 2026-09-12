@@ -26,7 +26,6 @@ async function main(): Promise<void> {
       source: new ViemSepoliaSourcePort(
         required('SEPOLIA_RPC_URL'),
         parseAddress(required('SOURCE_SIGNAL_CONTRACT_ADDRESS'), 'SOURCE_SIGNAL_CONTRACT_ADDRESS'),
-        required('WORKER_STRATEGY_ID'),
       ),
       attestation: new SdkAttestationPort(
         Number(process.env.ATTESTCOIN_SOURCE_CHAIN_KEY ?? 1),
