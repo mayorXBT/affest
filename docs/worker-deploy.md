@@ -8,7 +8,7 @@ dashboard; the MCP service does not monitor Sepolia by itself.
 Create a **Background Worker** in Render from the same repository:
 
 - Root directory: repository root
-- Build command: `pnpm install --frozen-lockfile && pnpm --filter @affest/worker build`
+- Build command: `pnpm install --frozen-lockfile && pnpm --filter @affest/worker... build`
 - Start command: `pnpm --filter @affest/worker start`
 
 Do not prepend `corepack enable`: Render's filesystem can reject Corepack's

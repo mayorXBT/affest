@@ -55,7 +55,7 @@ available after building the worker:
 ```powershell
 $env:SOURCE_TRANSACTION_HASH="0x..."
 $env:ATTESTCOIN_PROOF_API_URL="https://..."
-pnpm --filter @affest/worker build
+pnpm --filter @affest/worker... build
 pnpm --filter @affest/worker proof:inspect
 ```
 

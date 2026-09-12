@@ -4,9 +4,9 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts",
-    "./postgres": "./src/postgres.ts",
-    "./connection": "./src/connection.ts"
+    ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" },
+    "./postgres": { "types": "./dist/postgres.d.ts", "import": "./dist/postgres.js" },
+    "./connection": { "types": "./dist/connection.d.ts", "import": "./dist/connection.js" }
   },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
