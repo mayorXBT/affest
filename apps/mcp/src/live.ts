@@ -307,12 +307,12 @@ export async function readPortfolioDiagnostics(userId: string, triggerStates: re
   return { wallet, network: 'Creditcoin CC3 Testnet', chain, strategies };
 }
 
-export async function readLiveAccount(userId: string) {
+export async function readLiveAccount(userId: string, vaultOverride?: Address | null) {
   const wallet = walletFromUserId(userId);
   if (!wallet) return { userId, wallet: null, network: 'Creditcoin CC3 Testnet', note: 'Issue the MCP credential from the Affest Agents page while a wallet is connected.' };
   const [tctc, eth, vault, chain] = await Promise.all([
     cc3Client.getBalance({ address: wallet }), sepoliaClient.getBalance({ address: wallet }),
-    cc3Client.readContract({ abi: vaultFactoryAbi, address: contracts.vaultFactory, functionName: 'vaultOf', args: [wallet] }), readChainSnapshot(),
+    vaultOverride === null ? Promise.resolve(zeroAddress) : vaultOverride ? Promise.resolve(vaultOverride) : cc3Client.readContract({ abi: vaultFactoryAbi, address: contracts.vaultFactory, functionName: 'vaultOf', args: [wallet] }), readChainSnapshot(),
   ]);
   const vaultBalances = vault === zeroAddress ? undefined : await readVaultBalances(vault);
   const stable = vaultBalances?.stable.asset;

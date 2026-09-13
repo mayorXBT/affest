@@ -103,16 +103,20 @@ export function registerServer(auth: AuthContext, credentials: CredentialStore, 
   });
   server.registerTool('get_portfolios', { description: 'List the Affest vault and live balances for this wallet.', inputSchema: emptyInput, outputSchema }, async () => {
     record('get_portfolios');
-    const [account, context] = await Promise.all([readLiveAccount(auth.userId), loadDiagnosticContext(auth.userId, workerIndex)]);
+    const context = await loadDiagnosticContext(auth.userId, workerIndex);
     const diagnosticsError = contextFailure(context);
     if (diagnosticsError) return diagnosticsError;
+    const activeVault = context.diagnostics?.strategies.find((strategy) => strategy.status === 'ACTIVE')?.vault;
+    const account = await readLiveAccount(auth.userId, activeVault ?? null);
     return success({ account, strategies: context.diagnostics?.strategies ?? [], chain: context.diagnostics?.chain ?? null, note: 'Active does not mean rebalance-ready. Read each strategy readiness status before requesting an action.' });
   });
   server.registerTool('get_portfolio', { description: 'Read live vault and wallet holdings.', inputSchema: emptyInput, outputSchema }, async () => {
     record('get_portfolio');
-    const [account, context] = await Promise.all([readLiveAccount(auth.userId), loadDiagnosticContext(auth.userId, workerIndex)]);
+    const context = await loadDiagnosticContext(auth.userId, workerIndex);
     const diagnosticsError = contextFailure(context);
     if (diagnosticsError) return diagnosticsError;
+    const activeVault = context.diagnostics?.strategies.find((strategy) => strategy.status === 'ACTIVE')?.vault;
+    const account = await readLiveAccount(auth.userId, activeVault ?? null);
     return success({ account, strategies: context.diagnostics?.strategies ?? [], chain: context.diagnostics?.chain ?? null });
   });
   server.registerTool('get_portfolio_diagnostics', { description: 'Diagnose every strategy vault owned by this wallet using live Creditcoin CC3 reads.', inputSchema: emptyInput, outputSchema }, async () => {
@@ -132,9 +136,11 @@ export function registerServer(auth: AuthContext, credentials: CredentialStore, 
   });
   server.registerTool('get_portfolio_allocation', { description: 'Read current and target TCTC/ETH allocation data for this wallet.', inputSchema: emptyInput, outputSchema }, async () => {
     record('get_portfolio_allocation');
-    const [account, context] = await Promise.all([readLiveAccount(auth.userId), loadDiagnosticContext(auth.userId, workerIndex)]);
+    const context = await loadDiagnosticContext(auth.userId, workerIndex);
     const diagnosticsError = contextFailure(context);
     if (diagnosticsError) return diagnosticsError;
+    const activeVault = context.diagnostics?.strategies.find((strategy) => strategy.status === 'ACTIVE')?.vault;
+    const account = await readLiveAccount(auth.userId, activeVault ?? null);
     return success({ account, activeStrategy: context.diagnostics?.strategies.find((strategy) => strategy.status === 'ACTIVE') ?? null, strategies: context.diagnostics?.strategies ?? [], supportedAssets: ['WTCTC', 'ETH'], valuesAreLive: true });
   });
   server.registerTool('get_pending_actions', { description: 'List pending rebalance actions. Actions remain approval-gated.', inputSchema: emptyInput, outputSchema }, async () => {
