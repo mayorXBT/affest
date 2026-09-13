@@ -128,7 +128,7 @@ export function registerServer(auth: AuthContext, credentials: CredentialStore, 
     const context = await loadDiagnosticContext(auth.userId, workerIndex);
     const diagnosticsError = contextFailure(context);
     if (diagnosticsError) return diagnosticsError;
-    return success(context.diagnostics?.strategies ?? []);
+    return success((context.diagnostics?.strategies ?? []).filter((strategy) => strategy.status === 'ACTIVE'));
   });
   server.registerTool('get_portfolio_allocation', { description: 'Read current and target TCTC/ETH allocation data for this wallet.', inputSchema: emptyInput, outputSchema }, async () => {
     record('get_portfolio_allocation');
