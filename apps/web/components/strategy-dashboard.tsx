@@ -21,12 +21,12 @@ import { formatAmount, useCc3Holdings, useOwnedStrategies } from '@/lib/use-cc3'
 
 export function StrategyDashboard({ id }: { id: string }) {
   const owned = useOwnedStrategies();
-  const holdings = useCc3Holdings();
   const prices = useSpotPrices();
   const { writeContractAsync, isPending } = useWriteContract();
   const [range, setRange] = useState<'1D' | '1W'>('1W');
   const row = owned.items.find((item) => item.id.toString() === id);
   const strategy = row?.strategy;
+  const holdings = useCc3Holdings(strategy?.vault);
   const paused = strategy?.status === 1;
   const ethUsd = prices.data?.ethUsd ?? 0;
   const ctcUsd = prices.data?.ctcUsd ?? 0;
@@ -181,10 +181,10 @@ export function StrategyDashboard({ id }: { id: string }) {
           </small>
           <div className="mt-4 flex gap-2">
             <Button className="flex-1" asChild>
-              <Link href="/portfolio">Deposit</Link>
+              <Link href={`/portfolio?strategy=${row.id.toString()}`}>Deposit</Link>
             </Button>
             <Button className="flex-1" variant="outline" asChild>
-              <Link href="/portfolio">Withdraw</Link>
+              <Link href={`/portfolio?strategy=${row.id.toString()}`}>Withdraw</Link>
             </Button>
           </div>
         </Card>
