@@ -79,7 +79,9 @@ export function HoldingsTable() {
       if (!vault || holdings.vaultAddress?.toLowerCase() !== vault.toLowerCase()) {
         throw new Error('Selected strategy vault could not be verified. Deposit blocked.');
       }
-      if (!wrapper) throw new Error('Selected strategy WTCTC asset could not be read on CC3.');
+      if (!wrapper || wrapper.toLowerCase() !== selectedStrategy.strategy.stableAsset.toLowerCase()) {
+        throw new Error('Selected strategy WTCTC asset could not be verified on CC3. Deposit blocked.');
+      }
     } else {
       wrapper = await ensureWrappedTctc(deployers());
       holdings.rememberWrapper(wrapper);
@@ -172,6 +174,10 @@ export function HoldingsTable() {
         toast('Selected strategy vault could not be verified. Deposit blocked.');
         return;
       }
+      if (selectedStrategy && (!holdings.wrapper || holdings.wrapper.toLowerCase() !== selectedStrategy.strategy.stableAsset.toLowerCase())) {
+        toast('Selected strategy WTCTC asset could not be verified. Deposit blocked.');
+        return;
+      }
       const value = parseEther(amount || '0');
       if (value === 0n) {
         toast('Enter an amount greater than 0');
@@ -202,7 +208,8 @@ export function HoldingsTable() {
   const connected = holdings.isConnected;
   const selectionRequested = Boolean(requestedStrategyId);
   const selectedVaultMatches = Boolean(selectedStrategy && holdings.vaultAddress && holdings.vaultAddress.toLowerCase() === selectedStrategy.strategy.vault.toLowerCase());
-  const depositTargetVerified = !selectionRequested || Boolean(selectedStrategy && selectedVaultMatches);
+  const selectedStableMatches = Boolean(selectedStrategy && holdings.wrapper && holdings.wrapper.toLowerCase() === selectedStrategy.strategy.stableAsset.toLowerCase());
+  const depositTargetVerified = !selectionRequested || Boolean(selectedStrategy && selectedVaultMatches && selectedStableMatches);
   const ethUsd = prices.data?.ethUsd ?? 0;
   const ctcUsd = prices.data?.ctcUsd ?? 0;
   const available = asset.kind === 'cc3-native' ? holdings.tctc : holdings.eth;
