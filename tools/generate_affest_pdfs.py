@@ -309,6 +309,7 @@ def build_summary(path):
     story += [columns, Spacer(1, 6)]
     story.append(panel_light("JUDGE TAKEAWAY", "An AI portfolio manager can react to a verified event on another blockchain without trusting our backend and without receiving unrestricted access to the user's funds."))
     story += [Spacer(1, 6), LP("Testnet only. Attestcoin verification is real and contract-enforced. The CC3 swap adapter is a labelled demo adapter while a reliable documented CC3 DEX route is unavailable.", "LightSmall")]
+    story.append(LP("Full integration reference: <link href='https://affest.cefo.dev/docs/attestcoin' color='#55740d'>affest.cefo.dev/docs/attestcoin</link>", "LightSmall"))
     doc.build(story)
 
 
