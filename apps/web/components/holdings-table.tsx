@@ -190,7 +190,7 @@ export function HoldingsTable() {
 
   return (
     <div className="mt-7 grid gap-3.5 lg:grid-cols-3">
-      <Card className="order-4 lg:col-span-3 border-line bg-ink-2 p-3 sm:p-4">
+      <Card id="strategy-vaults" className="order-4 lg:col-span-3 border-line bg-ink-2 p-3 sm:p-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <p className="eyebrow accent">Strategy vaults</p>
@@ -272,14 +272,15 @@ export function HoldingsTable() {
         <div className="flex items-start justify-between gap-3">
           <div>
             <p className="eyebrow">Vault status</p>
-            <b className="block text-[17px]">{selectedStrategy ? `Strategy #${selectedStrategy.id.toString()} vault` : holdings.vaultAddress ? 'Vault on CC3' : connected ? 'No vault yet' : 'Not connected'}</b>
+            <b className="block text-[17px]">{selectedStrategy ? `Strategy #${selectedStrategy.id.toString()} vault` : holdings.vaultAddress ? 'Vault on CC3' : connected ? 'Select a strategy' : 'Not connected'}</b>
             <small className="mt-1 block break-all text-[12px] text-[#778384]">
               {holdings.vaultAddress ? `Vault: ${holdings.vaultAddress}` : 'Creditcoin CC3 · TCTC custody'}
             </small>
+            {connected && !selectedStrategy ? <Link href="#strategy-vaults" className="mt-2 inline-block text-[11px] font-semibold text-lime hover:underline">Choose a strategy below</Link> : null}
           </div>
           <div className="flex flex-col items-end gap-1">
             <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${holdings.vaultAddress ? 'bg-[#1c3a26] text-[#8fef9a]' : 'bg-[#2a3438] text-[#8f9a9b]'}`}>
-              {holdings.vaultAddress ? 'Active' : 'Idle'}
+              {holdings.vaultAddress ? 'Active' : connected ? 'Choose below' : 'Idle'}
             </span>
             <Sparkline
               values={prices.data?.ctcSpark ?? []}
