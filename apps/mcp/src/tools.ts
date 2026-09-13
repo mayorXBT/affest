@@ -1,9 +1,9 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import type { AuthContext, CredentialStore } from './auth.js';
-import { readLiveAccount, readLiveStrategies, readPortfolioDiagnostics } from './live.js';
+import { readLiveAccount, readPortfolioDiagnostics, type PortfolioDiagnostics, type PortfolioStrategyDiagnostic } from './live.js';
 import { validateStrategy } from '@affest/strategy-engine';
-import type { PostgresWorkerIndex } from './worker-index.js';
+import type { IndexedTrigger, PostgresWorkerIndex } from './worker-index.js';
 import { encodeFunctionData, isAddress, type Hex } from 'viem';
 
 const success = (data: unknown) => ({
@@ -35,6 +35,48 @@ function eventKeyHex(value: string): Hex {
   return value as Hex;
 }
 
+type DiagnosticContext = {
+  readonly diagnostics: PortfolioDiagnostics | null;
+  readonly triggers: readonly IndexedTrigger[];
+  readonly error?: { readonly code: 'CC3_READ_FAILED'; readonly message: string };
+};
+
+async function loadDiagnosticContext(userId: string, workerIndex?: PostgresWorkerIndex): Promise<DiagnosticContext> {
+  const triggers = workerIndex ? await workerIndex.list(userId) : [];
+  try {
+    const diagnostics = await readPortfolioDiagnostics(userId, triggers.map((trigger) => ({ strategyId: trigger.strategyId, status: trigger.status })));
+    return { diagnostics, triggers };
+  } catch (error: unknown) {
+    return { diagnostics: null, triggers, error: { code: 'CC3_READ_FAILED', message: error instanceof Error ? error.message : 'Creditcoin CC3 diagnostics could not be read.' } };
+  }
+}
+
+function contextFailure(context: DiagnosticContext) {
+  return context.error ? failure(context.error.code, { reason: context.error.message, nextAction: 'Check the Creditcoin CC3 RPC and contract configuration, then retry.' }) : undefined;
+}
+
+function findStrategy(context: DiagnosticContext, strategyId: string): PortfolioStrategyDiagnostic | undefined {
+  return context.diagnostics?.strategies.find((item) => item.strategyId === strategyId);
+}
+
+function strategyNotFound(strategyId: string) {
+  return failure('STRATEGY_NOT_FOUND', { strategyId, reason: `Strategy #${strategyId} was not found for this wallet.`, nextAction: 'Use get_active_strategies or get_portfolio_diagnostics to choose an owned strategy.' });
+}
+
+function diagnosticBlocked(strategy: PortfolioStrategyDiagnostic) {
+  return failure(strategy.readiness.code, {
+    strategyId: strategy.strategyId,
+    vault: strategy.vault,
+    readiness: strategy.readiness,
+    configuration: strategy.configuration,
+    stableAsset: strategy.stableAsset,
+    riskAsset: strategy.riskAsset,
+    nativeTctc: strategy.nativeTctc,
+    rebalance: strategy.rebalance,
+    chain: strategy.chain,
+  });
+}
+
 export function scopeForTool(tool: string): 'read' | 'plan' | 'proof' | 'action' {
   if (tool.startsWith('get_')) return 'read';
   if (['draft_strategy', 'validate_strategy', 'preview_rebalance', 'explain_rebalance', 'check_strategy_conditions'].includes(tool)) return 'plan';
@@ -61,35 +103,49 @@ export function registerServer(auth: AuthContext, credentials: CredentialStore, 
   });
   server.registerTool('get_portfolios', { description: 'List the Affest vault and live balances for this wallet.', inputSchema: emptyInput, outputSchema }, async () => {
     record('get_portfolios');
-    const [account, diagnostics] = await Promise.all([readLiveAccount(auth.userId), readPortfolioDiagnostics(auth.userId)]);
-    return success({ account, strategies: diagnostics?.strategies ?? [], chain: diagnostics?.chain ?? null, note: 'Active does not mean rebalance-ready. Read each strategy readiness status before requesting an action.' });
+    const [account, context] = await Promise.all([readLiveAccount(auth.userId), loadDiagnosticContext(auth.userId, workerIndex)]);
+    const diagnosticsError = contextFailure(context);
+    if (diagnosticsError) return diagnosticsError;
+    return success({ account, strategies: context.diagnostics?.strategies ?? [], chain: context.diagnostics?.chain ?? null, note: 'Active does not mean rebalance-ready. Read each strategy readiness status before requesting an action.' });
   });
   server.registerTool('get_portfolio', { description: 'Read live vault and wallet holdings.', inputSchema: emptyInput, outputSchema }, async () => {
     record('get_portfolio');
-    const [account, diagnostics] = await Promise.all([readLiveAccount(auth.userId), readPortfolioDiagnostics(auth.userId)]);
-    return success({ account, strategies: diagnostics?.strategies ?? [], chain: diagnostics?.chain ?? null });
+    const [account, context] = await Promise.all([readLiveAccount(auth.userId), loadDiagnosticContext(auth.userId, workerIndex)]);
+    const diagnosticsError = contextFailure(context);
+    if (diagnosticsError) return diagnosticsError;
+    return success({ account, strategies: context.diagnostics?.strategies ?? [], chain: context.diagnostics?.chain ?? null });
   });
   server.registerTool('get_portfolio_diagnostics', { description: 'Diagnose every strategy vault owned by this wallet using live Creditcoin CC3 reads.', inputSchema: emptyInput, outputSchema }, async () => {
     record('get_portfolio_diagnostics');
-    const diagnostics = await readPortfolioDiagnostics(auth.userId);
-    if (!diagnostics) return failure('wallet address is required for portfolio diagnostics', { userId: auth.userId, strategies: [] });
-    return success(diagnostics);
+    const context = await loadDiagnosticContext(auth.userId, workerIndex);
+    const diagnosticsError = contextFailure(context);
+    if (diagnosticsError) return diagnosticsError;
+    if (!context.diagnostics) return failure('WALLET_REQUIRED', { userId: auth.userId, strategies: [] });
+    return success(context.diagnostics);
   });
   server.registerTool('get_active_strategies', { description: 'List this wallet\'s live CC3 strategies.', inputSchema: emptyInput, outputSchema }, async () => {
     record('get_active_strategies');
-    return success(await readLiveStrategies(auth.userId));
+    const context = await loadDiagnosticContext(auth.userId, workerIndex);
+    const diagnosticsError = contextFailure(context);
+    if (diagnosticsError) return diagnosticsError;
+    return success(context.diagnostics?.strategies ?? []);
   });
   server.registerTool('get_portfolio_allocation', { description: 'Read current and target TCTC/ETH allocation data for this wallet.', inputSchema: emptyInput, outputSchema }, async () => {
     record('get_portfolio_allocation');
-    const [account, diagnostics] = await Promise.all([readLiveAccount(auth.userId), readPortfolioDiagnostics(auth.userId)]);
-    return success({ account, activeStrategy: diagnostics?.strategies.find((strategy) => strategy.status === 'ACTIVE') ?? null, strategies: diagnostics?.strategies ?? [], supportedAssets: ['WTCTC', 'DEMO_RISK'], valuesAreLive: true });
+    const [account, context] = await Promise.all([readLiveAccount(auth.userId), loadDiagnosticContext(auth.userId, workerIndex)]);
+    const diagnosticsError = contextFailure(context);
+    if (diagnosticsError) return diagnosticsError;
+    return success({ account, activeStrategy: context.diagnostics?.strategies.find((strategy) => strategy.status === 'ACTIVE') ?? null, strategies: context.diagnostics?.strategies ?? [], supportedAssets: ['WTCTC', 'ETH'], valuesAreLive: true });
   });
   server.registerTool('get_pending_actions', { description: 'List pending rebalance actions. Actions remain approval-gated.', inputSchema: emptyInput, outputSchema }, async () => {
     record('get_pending_actions');
-    const triggers = workerIndex ? await workerIndex.list(auth.userId) : [];
-    const actions = triggers.filter((trigger) => trigger.status === 'approval-pending').map((trigger) => ({
+    const context = await loadDiagnosticContext(auth.userId, workerIndex);
+    const diagnosticsError = contextFailure(context);
+    if (diagnosticsError) return diagnosticsError;
+    const actions = context.triggers.filter((trigger) => trigger.status === 'approval-pending').map((trigger) => ({
       triggerId: trigger.id,
       strategyId: trigger.strategyId,
+      ...(findStrategy(context, trigger.strategyId) ? { readiness: findStrategy(context, trigger.strategyId)?.readiness, vault: findStrategy(context, trigger.strategyId)?.vault } : {}),
       sourceTransactionHash: trigger.transactionHash,
       eventKey: typeof trigger.statusPayload.eventKey === 'string' ? trigger.statusPayload.eventKey : null,
       requestTransactionHash: typeof trigger.statusPayload.requestTransactionHash === 'string' ? trigger.statusPayload.requestTransactionHash : null,
@@ -99,9 +155,11 @@ export function registerServer(auth: AuthContext, credentials: CredentialStore, 
   });
   server.registerTool('get_attestcoin_status', { description: 'Read Attestcoin proof lifecycle status for this account.', inputSchema: emptyInput, outputSchema }, async () => {
     record('get_attestcoin_status');
-    const latest = workerIndex ? (await workerIndex.list(auth.userId))[0] : undefined;
-    const diagnostics = await readPortfolioDiagnostics(auth.userId);
-    return success({ sourceChain: 'ethereum-sepolia', status: latest?.status ?? 'not-indexed', verifiedOn: 'Creditcoin CC3 Testnet', ...(latest ? { sourceTransactionHash: latest.transactionHash, details: latest.statusPayload } : { note: 'Proof status is available after the worker coordination store is connected.' }), strategies: diagnostics?.strategies.map((strategy) => ({ strategyId: strategy.strategyId, vault: strategy.vault, readiness: strategy.readiness })) ?? [] });
+    const context = await loadDiagnosticContext(auth.userId, workerIndex);
+    const diagnosticsError = contextFailure(context);
+    if (diagnosticsError) return diagnosticsError;
+    const latest = context.triggers[0];
+    return success({ sourceChain: 'ethereum-sepolia', status: latest?.status ?? 'not-indexed', verifiedOn: 'Creditcoin CC3 Testnet', ...(latest ? { sourceTransactionHash: latest.transactionHash, details: latest.statusPayload } : { note: 'Proof status is available after the worker coordination store is connected.' }), strategies: context.diagnostics?.strategies.map((strategy) => ({ strategyId: strategy.strategyId, vault: strategy.vault, readiness: strategy.readiness })) ?? [] });
   });
   server.registerTool('get_trigger_history', { description: 'List source-chain trigger history for this account.', inputSchema: emptyInput, outputSchema }, async () => {
     record('get_trigger_history');
@@ -121,9 +179,11 @@ export function registerServer(auth: AuthContext, credentials: CredentialStore, 
   });
   server.registerTool('get_strategy', { description: 'Read one live CC3 strategy by id.', inputSchema: strategyInput, outputSchema }, async (args) => {
     record('get_strategy');
-    const diagnostics = await readPortfolioDiagnostics(auth.userId);
-    const found = diagnostics?.strategies.find((item) => item.strategyId === args.strategyId);
-    return success(found ?? { error: 'strategy not found for this wallet', strategyId: args.strategyId });
+    const context = await loadDiagnosticContext(auth.userId, workerIndex);
+    const diagnosticsError = contextFailure(context);
+    if (diagnosticsError) return diagnosticsError;
+    const found = findStrategy(context, args.strategyId);
+    return found ? success(found) : strategyNotFound(args.strategyId);
   });
   server.registerTool('draft_strategy', { description: 'Draft a TCTC/ETH mix from natural language. Never executable until the user signs createStrategy.', inputSchema: z.object({ instruction: z.string().min(1).max(2000) }), outputSchema }, async (args) => {
     record('draft_strategy');
@@ -148,17 +208,21 @@ export function registerServer(auth: AuthContext, credentials: CredentialStore, 
   });
   server.registerTool('preview_rebalance', { description: 'Prepare a non-signing rebalance preview for a strategy.', inputSchema: idempotentActionInput, outputSchema }, async (args) => {
     record('preview_rebalance');
-    const diagnostics = await readPortfolioDiagnostics(auth.userId);
-    const strategy = diagnostics?.strategies.find((item) => item.strategyId === args.strategyId);
-    if (!strategy) return failure(`strategy #${args.strategyId} was not found for this wallet`, { strategyId: args.strategyId });
-    if (!strategy.readiness.possible) return failure(`strategy #${args.strategyId} is not rebalance-ready: ${strategy.readiness.reason ?? 'on-chain preflight failed'}`, { strategyId: args.strategyId, vault: strategy.vault, readiness: strategy.readiness, stableAsset: strategy.stableAsset, riskAsset: strategy.riskAsset, nativeTctc: strategy.nativeTctc, chain: strategy.chain });
+    const context = await loadDiagnosticContext(auth.userId, workerIndex);
+    const diagnosticsError = contextFailure(context);
+    if (diagnosticsError) return diagnosticsError;
+    const strategy = findStrategy(context, args.strategyId);
+    if (!strategy) return strategyNotFound(args.strategyId);
+    if (!strategy.readiness.possible) return diagnosticBlocked(strategy);
     return success({ strategyId: args.strategyId, vault: strategy.vault, stableAsset: strategy.stableAsset, riskAsset: strategy.riskAsset, targetAllocation: strategy.targetAllocation, rebalance: strategy.rebalance, unsigned: true, requiresApproval: true, simulated: false, note: 'Swap simulation is not connected to the MCP service.' });
   });
   server.registerTool('explain_rebalance', { description: 'Explain whether a strategy vault can rebalance and why.', inputSchema: strategyInput.partial(), outputSchema }, async (args) => {
     record('explain_rebalance');
-    const diagnostics = await readPortfolioDiagnostics(auth.userId);
-    const strategy = args.strategyId ? diagnostics?.strategies.find((item) => item.strategyId === args.strategyId) : diagnostics?.strategies.find((item) => item.status === 'ACTIVE');
-    if (!strategy) return failure(args.strategyId ? `strategy #${args.strategyId} was not found for this wallet` : 'no active strategy found for this wallet');
+    const diagnostics = await loadDiagnosticContext(auth.userId, workerIndex);
+    const diagnosticsError = contextFailure(diagnostics);
+    if (diagnosticsError) return diagnosticsError;
+    const strategy = args.strategyId ? findStrategy(diagnostics, args.strategyId) : diagnostics.diagnostics?.strategies.find((item) => item.status === 'ACTIVE');
+    if (!strategy) return args.strategyId ? strategyNotFound(args.strategyId) : failure('NO_ACTIVE_STRATEGY', { reason: 'No active strategy found for this wallet.', nextAction: 'Create or activate a strategy, then retry.' });
     return success({
       explanation: 'Affest rebalances a TCTC/ETH mix only after Creditcoin verifies an Attestcoin proof of a Sepolia PortfolioSignal. The MCP server never signs. Pause remains on-chain and independent of this credential.',
       verifiedSourceRequired: true,
@@ -174,10 +238,12 @@ export function registerServer(auth: AuthContext, credentials: CredentialStore, 
   });
   server.registerTool('check_strategy_conditions', { description: 'Check whether a strategy has a verified trigger and may be proposed.', inputSchema: strategyInput, outputSchema }, async (args) => {
     record('check_strategy_conditions');
-    const diagnostics = await readPortfolioDiagnostics(auth.userId);
-    const strategy = diagnostics?.strategies.find((item) => item.strategyId === args.strategyId);
-    if (!strategy) return failure(`strategy #${args.strategyId} was not found for this wallet`, { strategyId: args.strategyId });
-    const trigger = workerIndex ? (await workerIndex.list(auth.userId)).find((item) => item.strategyId === args.strategyId) : undefined;
+    const context = await loadDiagnosticContext(auth.userId, workerIndex);
+    const diagnosticsError = contextFailure(context);
+    if (diagnosticsError) return diagnosticsError;
+    const strategy = findStrategy(context, args.strategyId);
+    if (!strategy) return strategyNotFound(args.strategyId);
+    const trigger = context.triggers.find((item) => item.strategyId === args.strategyId);
     const triggerEligible = trigger?.status === 'verified' || trigger?.status === 'approval-pending' || trigger?.status === 'executed';
     const blockers: string[] = [];
     if (!strategy.readiness.possible) blockers.push(strategy.readiness.reason ?? 'strategy preflight failed');
@@ -231,27 +297,41 @@ export function registerServer(auth: AuthContext, credentials: CredentialStore, 
   });
   server.registerTool('request_rebalance', { description: 'Request a guarded rebalance proposal. Never signs or submits.', inputSchema: idempotentActionInput, outputSchema }, async (args) => {
     record('request_rebalance');
-    const diagnostics = await readPortfolioDiagnostics(auth.userId);
-    const strategy = diagnostics?.strategies.find((item) => item.strategyId === args.strategyId);
-    if (!strategy) return failure(`strategy #${args.strategyId} was not found for this wallet`, { strategyId: args.strategyId });
-    if (!strategy.readiness.possible) return failure(`strategy #${args.strategyId} is not rebalance-ready: ${strategy.readiness.reason ?? 'on-chain preflight failed'}`, { strategyId: args.strategyId, vault: strategy.vault, readiness: strategy.readiness, stableAsset: strategy.stableAsset, riskAsset: strategy.riskAsset, nativeTctc: strategy.nativeTctc, chain: strategy.chain });
-    const trigger = workerIndex ? (await workerIndex.list(auth.userId)).find((item) => item.strategyId === args.strategyId) : undefined;
+    const context = await loadDiagnosticContext(auth.userId, workerIndex);
+    const diagnosticsError = contextFailure(context);
+    if (diagnosticsError) return diagnosticsError;
+    const strategy = findStrategy(context, args.strategyId);
+    if (!strategy) return strategyNotFound(args.strategyId);
+    if (!strategy.readiness.possible) return diagnosticBlocked(strategy);
+    const trigger = context.triggers.find((item) => item.strategyId === args.strategyId);
     if (!trigger) return success({ strategyId: args.strategyId, requestId: args.idempotencyKey ?? null, status: 'waiting-for-verified-trigger', requiresApproval: true, unsigned: true, note: 'The worker has not indexed a proof-backed trigger for this strategy.' });
     return success({ strategyId: args.strategyId, requestId: args.idempotencyKey ?? null, status: trigger.status, requiresApproval: trigger.status === 'approval-pending', unsigned: true, sourceTransactionHash: trigger.transactionHash, details: trigger.statusPayload });
   });
   server.registerTool('prepare_approval_transaction', { description: 'Prepare an unsigned user approval transaction for a proof-verified pending rebalance.', inputSchema: approvalInput, outputSchema }, async (args) => {
     record('prepare_approval_transaction');
     if (!executorAddress || !isAddress(executorAddress)) return failure('AFFEST_EXECUTOR_ADDRESS is not configured on the MCP service');
-    const pending = workerIndex ? (await workerIndex.list(auth.userId)).find((item) => item.status === 'approval-pending' && item.statusPayload.eventKey === args.eventKey) : undefined;
+    const context = await loadDiagnosticContext(auth.userId, workerIndex);
+    const diagnosticsError = contextFailure(context);
+    if (diagnosticsError) return diagnosticsError;
+    const pending = context.triggers.find((item) => item.status === 'approval-pending' && item.statusPayload.eventKey === args.eventKey);
     if (!pending) return failure('approval-pending action not found for this wallet and eventKey');
+    const strategy = findStrategy(context, pending.strategyId);
+    if (!strategy) return strategyNotFound(pending.strategyId);
+    if (strategy.status !== 'ACTIVE' || !strategy.configuration.valid || !strategy.rebalance.possible) return diagnosticBlocked(strategy);
     const data = encodeFunctionData({ abi: approveRebalanceAbi, functionName: 'approveRebalance', args: [eventKeyHex(args.eventKey)] });
     return success({ unsigned: true, readyToSign: true, to: executorAddress, data, value: '0', eventKey: args.eventKey, requestId: args.idempotencyKey ?? null });
   });
   server.registerTool('execute_authorized_rebalance', { description: 'Prepare the unsigned owner approval call for a proof-verified pending rebalance. This server never signs.', inputSchema: approvalInput, outputSchema }, async (args) => {
     record('execute_authorized_rebalance');
     if (!executorAddress || !isAddress(executorAddress)) return failure('AFFEST_EXECUTOR_ADDRESS is not configured on the MCP service');
-    const pending = workerIndex ? (await workerIndex.list(auth.userId)).find((item) => item.status === 'approval-pending' && item.statusPayload.eventKey === args.eventKey) : undefined;
+    const context = await loadDiagnosticContext(auth.userId, workerIndex);
+    const diagnosticsError = contextFailure(context);
+    if (diagnosticsError) return diagnosticsError;
+    const pending = context.triggers.find((item) => item.status === 'approval-pending' && item.statusPayload.eventKey === args.eventKey);
     if (!pending) return failure('approval-pending action not found for this wallet and eventKey');
+    const strategy = findStrategy(context, pending.strategyId);
+    if (!strategy) return strategyNotFound(pending.strategyId);
+    if (strategy.status !== 'ACTIVE' || !strategy.configuration.valid || !strategy.rebalance.possible) return diagnosticBlocked(strategy);
     const data = encodeFunctionData({ abi: approveRebalanceAbi, functionName: 'approveRebalance', args: [eventKeyHex(args.eventKey)] });
     return success({ unsigned: true, readyToSign: true, to: executorAddress, data, value: '0', eventKey: args.eventKey, note: 'Review the pending action, then sign this call with the strategy owner wallet.' });
   });

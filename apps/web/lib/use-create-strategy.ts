@@ -71,6 +71,15 @@ export function useCreateStrategy() {
         args: [stable, riskAsset, cc3Contracts.swapAdapter],
       }),
     });
+    const [vaultCode, vaultOwner, vaultStableAsset, vaultRiskAsset] = await Promise.all([
+      getBytecode(wagmiConfig, { address: vault, chainId: creditcoinCc3.id }),
+      readContract(wagmiConfig, { abi: vaultAbi, address: vault, functionName: 'owner', chainId: creditcoinCc3.id }),
+      readContract(wagmiConfig, { abi: vaultAbi, address: vault, functionName: 'stableAsset', chainId: creditcoinCc3.id }),
+      readContract(wagmiConfig, { abi: vaultAbi, address: vault, functionName: 'riskAsset', chainId: creditcoinCc3.id }),
+    ]);
+    if (!vaultCode || vaultCode === '0x') throw new Error('Vault has no contract code on Creditcoin CC3. Strategy creation blocked.');
+    if (vaultOwner.toLowerCase() !== holdings.address.toLowerCase()) throw new Error('Vault owner does not match the connected wallet. Strategy creation blocked.');
+    if (vaultStableAsset.toLowerCase() !== wrapper.toLowerCase() || vaultRiskAsset.toLowerCase() !== riskAsset.toLowerCase()) throw new Error('Vault token configuration does not match the strategy assets. Strategy creation blocked.');
     holdings.rememberVault(vault);
     const hash = await writeContractAsync({
       abi: strategyManagerAbi,

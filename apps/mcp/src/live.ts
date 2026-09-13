@@ -141,8 +141,25 @@ export async function readVaultBalances(vault: Address, expected?: { readonly st
   return { vault, owner, nativeTctc: native.toString(), stable, risk, vaultExists: true, vaultStableAsset, vaultRiskAsset };
 }
 
+export type DiagnosticCode =
+  | 'READY'
+  | 'NOT_NEEDED'
+  | 'UNFUNDED'
+  | 'INACTIVE'
+  | 'MISCONFIGURED'
+  | 'PROOF_PENDING'
+  | 'EXECUTION_PENDING'
+  | 'VAULT_NOT_FOUND'
+  | 'VAULT_READ_FAILED'
+  | 'TOKEN_NOT_FOUND'
+  | 'TOKEN_READ_FAILED'
+  | 'VAULT_OWNER_MISMATCH'
+  | 'VAULT_ASSET_MISMATCH'
+  | 'DECIMALS_MISMATCH';
+
 export type RebalancePreflight = {
   readonly possible: boolean;
+  readonly code: DiagnosticCode;
   readonly reason?: string;
   readonly nextAction?: string;
   readonly amountIn?: string;
@@ -151,25 +168,26 @@ export type RebalancePreflight = {
 
 export function rebalancePreflight(balances: LiveVaultBalances, stableWeightBps: number): RebalancePreflight {
   if (!balances.vaultExists && balances.vaultExists !== undefined) {
-    return { possible: false, reason: 'Vault address has no contract code on Creditcoin CC3.', nextAction: 'Use the strategy vault address on Creditcoin CC3, or create a new portfolio vault.' };
+    return { possible: false, code: 'VAULT_NOT_FOUND', reason: 'Vault address has no contract code on Creditcoin CC3.', nextAction: 'Use the strategy vault address on Creditcoin CC3, or create a new portfolio vault.' };
   }
   if (!balances.stable.readable || !balances.risk.readable) {
-    return { possible: false, reason: balances.stable.reason ?? balances.risk.reason ?? 'Vault assets could not be read on Creditcoin CC3.', nextAction: 'Use supported CC3 token addresses for both vault assets, then recreate any strategy that is misconfigured.' };
+    const missingToken = !balances.stable.contractExists || !balances.risk.contractExists;
+    return { possible: false, code: missingToken ? 'TOKEN_NOT_FOUND' : 'TOKEN_READ_FAILED', reason: balances.stable.reason ?? balances.risk.reason ?? 'Vault assets could not be read on Creditcoin CC3.', nextAction: 'Use supported CC3 token addresses for both vault assets, then recreate any strategy that is misconfigured.' };
   }
   if (balances.stable.decimals !== balances.risk.decimals) {
-    return { possible: false, reason: 'Vault assets use different decimals, so an allocation delta cannot be calculated safely.', nextAction: 'Use the supported CC3 asset pair with matching decimals.' };
+    return { possible: false, code: 'DECIMALS_MISMATCH', reason: 'Vault assets use different decimals, so an allocation delta cannot be calculated safely.', nextAction: 'Use the supported CC3 asset pair with matching decimals.' };
   }
   const stable = BigInt(balances.stable.balance);
   const risk = BigInt(balances.risk.balance);
   const total = stable + risk;
-  if (total === 0n) return { possible: false, reason: 'Vault has no assets. Deposit testnet TCTC/ETH before rebalancing.', nextAction: 'Deposit supported CC3 vault assets, then refresh the portfolio.' };
+  if (total === 0n) return { possible: false, code: 'UNFUNDED', reason: 'Vault has no assets. Deposit testnet TCTC/ETH before rebalancing.', nextAction: 'Deposit supported CC3 vault assets, then refresh the portfolio.' };
   const targetStable = total * BigInt(stableWeightBps) / 10_000n;
   const amountIn = stable > targetStable ? stable - targetStable : targetStable - stable;
-  if (amountIn === 0n) return { possible: false, reason: 'Vault is already at the target allocation.', nextAction: 'Wait for the next verified trigger or change the strategy allocation.' };
-  return { possible: true, amountIn: amountIn.toString(), direction: stable > targetStable ? 'stable-to-risk' : 'risk-to-stable' };
+  if (amountIn === 0n) return { possible: false, code: 'NOT_NEEDED', reason: 'Vault is already at the target allocation.', nextAction: 'Wait for the next verified trigger or change the strategy allocation.' };
+  return { possible: true, code: 'READY', amountIn: amountIn.toString(), direction: stable > targetStable ? 'stable-to-risk' : 'risk-to-stable' };
 }
 
-export type StrategyReadiness = 'READY' | 'BALANCED' | 'UNFUNDED' | 'MISCONFIGURED' | 'PAUSED' | 'REVOKED';
+export type StrategyReadiness = 'READY' | 'UNFUNDED' | 'MISCONFIGURED' | 'INACTIVE' | 'NOT_NEEDED' | 'PROOF_PENDING' | 'EXECUTION_PENDING';
 
 export type PortfolioStrategyDiagnostic = {
   readonly strategyId: string;
@@ -188,7 +206,7 @@ export type PortfolioStrategyDiagnostic = {
   readonly vaultOwnerMatchesStrategy: boolean;
   readonly tokenContractsExist: { readonly stable: boolean; readonly risk: boolean };
   readonly configuration: { readonly valid: boolean; readonly reasons: readonly string[] };
-  readonly readiness: { readonly status: StrategyReadiness; readonly possible: boolean; readonly reason?: string; readonly nextAction?: string };
+  readonly readiness: { readonly status: StrategyReadiness; readonly code: DiagnosticCode; readonly possible: boolean; readonly reason?: string; readonly nextAction?: string };
   readonly rebalance: RebalancePreflight;
   readonly chain: ChainSnapshot;
   readonly onchain: { readonly mode: number; readonly lastExecutionAt: string; readonly cooldownSeconds: string; readonly expiresAt: string };
@@ -224,7 +242,23 @@ function statusLabel(status: number): PortfolioStrategyDiagnostic['status'] {
   return 'ACTIVE';
 }
 
-async function readStrategyDiagnostic(strategyId: bigint, strategy: OnchainStrategy, chain: ChainSnapshot): Promise<PortfolioStrategyDiagnostic> {
+export type TriggerState = { readonly strategyId: string; readonly status: string };
+
+export function triggerReadiness(base: PortfolioStrategyDiagnostic['readiness'], triggerStatus: string | undefined): PortfolioStrategyDiagnostic['readiness'] {
+  if (base.status !== 'READY' || !triggerStatus) return base;
+  if (['detected', 'source-confirmed', 'waiting-for-attestation', 'proof-ready'].includes(triggerStatus)) {
+    return { ...base, status: 'PROOF_PENDING', code: 'PROOF_PENDING', possible: false, reason: `Attestcoin trigger is ${triggerStatus}; proof verification is still pending.`, nextAction: 'Wait for Attestcoin proof generation and Creditcoin verification.' };
+  }
+  if (triggerStatus === 'approval-pending') {
+    return { ...base, status: 'EXECUTION_PENDING', code: 'EXECUTION_PENDING', possible: false, reason: 'A verified rebalance is waiting for wallet approval.', nextAction: 'Review and sign the pending approval transaction.' };
+  }
+  if (triggerStatus === 'executed') {
+    return { ...base, status: 'NOT_NEEDED', code: 'NOT_NEEDED', possible: false, reason: 'The latest verified rebalance has already executed.', nextAction: 'Wait for the next verified trigger.' };
+  }
+  return base;
+}
+
+async function readStrategyDiagnostic(strategyId: bigint, strategy: OnchainStrategy, chain: ChainSnapshot, triggerStatus?: string): Promise<PortfolioStrategyDiagnostic> {
   const balances = await readVaultBalances(strategy.vault, { stableAsset: strategy.stableAsset, riskAsset: strategy.riskAsset });
   const vaultOwnerMatchesStrategy = Boolean(balances.owner && balances.owner.toLowerCase() === strategy.owner.toLowerCase());
   const vaultAssetsMatchStrategy = Boolean(balances.vaultStableAsset && balances.vaultRiskAsset && balances.vaultStableAsset.toLowerCase() === strategy.stableAsset.toLowerCase() && balances.vaultRiskAsset.toLowerCase() === strategy.riskAsset.toLowerCase());
@@ -235,14 +269,17 @@ async function readStrategyDiagnostic(strategyId: bigint, strategy: OnchainStrat
   if (balances.vaultExists && !vaultOwnerMatchesStrategy) reasons.push(`Vault owner ${balances.owner ?? 'unknown'} does not match strategy owner ${strategy.owner}.`);
   if (balances.vaultExists && !vaultAssetsMatchStrategy) reasons.push('Vault token configuration does not match the strategy token configuration.');
   const configurationValid = reasons.length === 0;
-  const rebalance = configurationValid ? rebalancePreflight(balances, strategy.stableWeightBps) : { possible: false, reason: reasons[0] ?? 'Strategy configuration is invalid.', nextAction: 'Recreate this strategy with the vault and supported CC3 token addresses shown in this diagnostic.' };
+  const configurationCode: DiagnosticCode = !balances.vaultExists ? 'VAULT_NOT_FOUND' : !balances.stable.contractExists || !balances.risk.contractExists ? 'TOKEN_NOT_FOUND' : !vaultOwnerMatchesStrategy ? 'VAULT_OWNER_MISMATCH' : !vaultAssetsMatchStrategy ? 'VAULT_ASSET_MISMATCH' : 'MISCONFIGURED';
+  const rebalance = configurationValid ? rebalancePreflight(balances, strategy.stableWeightBps) : { possible: false, code: configurationCode, reason: reasons[0] ?? 'Strategy configuration is invalid.', nextAction: 'Recreate this strategy with the vault and supported CC3 token addresses shown in this diagnostic.' };
   const status = statusLabel(strategy.status);
   let readiness: StrategyReadiness = 'READY';
-  if (status === 'PAUSED') readiness = 'PAUSED';
-  else if (status === 'REVOKED') readiness = 'REVOKED';
+  if (status !== 'ACTIVE') readiness = 'INACTIVE';
   else if (!configurationValid) readiness = 'MISCONFIGURED';
-  else if (rebalance.reason?.startsWith('Vault has no assets')) readiness = 'UNFUNDED';
-  else if (rebalance.reason?.startsWith('Vault is already')) readiness = 'BALANCED';
+  else if (rebalance.code === 'UNFUNDED') readiness = 'UNFUNDED';
+  else if (rebalance.code === 'NOT_NEEDED') readiness = 'NOT_NEEDED';
+  const baseCode: DiagnosticCode = readiness === 'INACTIVE' ? 'INACTIVE' : readiness === 'READY' ? 'READY' : rebalance.code;
+  const baseReadiness: PortfolioStrategyDiagnostic['readiness'] = { status: readiness, code: baseCode, possible: status === 'ACTIVE' && rebalance.possible, ...(rebalance.reason ? { reason: rebalance.reason } : {}), ...(rebalance.nextAction ? { nextAction: rebalance.nextAction } : {}) };
+  const readinessResult = triggerReadiness(baseReadiness, triggerStatus);
   return {
     strategyId: strategyId.toString(), status, owner: strategy.owner, vault: strategy.vault,
     targetAllocation: { stableWeightBps: strategy.stableWeightBps, riskWeightBps: strategy.riskWeightBps },
@@ -252,13 +289,13 @@ async function readStrategyDiagnostic(strategyId: bigint, strategy: OnchainStrat
     vaultAssetsMatchStrategy, vaultOwnerMatchesStrategy,
     tokenContractsExist: { stable: balances.stable.contractExists, risk: balances.risk.contractExists },
     configuration: { valid: configurationValid, reasons },
-    readiness: { status: readiness, possible: status === 'ACTIVE' && rebalance.possible, ...(rebalance.reason ? { reason: rebalance.reason } : {}), ...(rebalance.nextAction ? { nextAction: rebalance.nextAction } : {}) },
+    readiness: readinessResult,
     rebalance, chain,
     onchain: { mode: strategy.mode, lastExecutionAt: strategy.lastExecutionAt.toString(), cooldownSeconds: strategy.cooldownSeconds.toString(), expiresAt: strategy.expiresAt.toString() },
   };
 }
 
-export async function readPortfolioDiagnostics(userId: string): Promise<PortfolioDiagnostics | null> {
+export async function readPortfolioDiagnostics(userId: string, triggerStates: readonly TriggerState[] = []): Promise<PortfolioDiagnostics | null> {
   const wallet = walletFromUserId(userId);
   if (!wallet) return null;
   const [chain, count] = await Promise.all([readChainSnapshot(), cc3Client.readContract({ abi: strategyManagerAbi, address: contracts.strategyManager, functionName: 'strategyCount' })]);
@@ -266,7 +303,7 @@ export async function readPortfolioDiagnostics(userId: string): Promise<Portfoli
   const ids = Array.from({ length: total }, (_, index) => BigInt(index + 1));
   const rows = await Promise.all(ids.map(async (id) => ({ id, strategy: await cc3Client.readContract({ abi: strategyManagerAbi, address: contracts.strategyManager, functionName: 'getStrategy', args: [id] }) })));
   const owned = rows.filter((row) => row.strategy.owner.toLowerCase() === wallet.toLowerCase());
-  const strategies = await Promise.all(owned.map((row) => readStrategyDiagnostic(row.id, row.strategy, chain)));
+  const strategies = await Promise.all(owned.map((row) => readStrategyDiagnostic(row.id, row.strategy, chain, triggerStates.find((trigger) => trigger.strategyId === row.id.toString())?.status)));
   return { wallet, network: 'Creditcoin CC3 Testnet', chain, strategies };
 }
 

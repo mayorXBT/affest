@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { getAddress } from 'viem';
-import { rebalancePreflight, type LiveVaultBalances } from '../src/live.js';
+import { rebalancePreflight, triggerReadiness, type LiveVaultBalances } from '../src/live.js';
 
 const vault = getAddress('0x0000000000000000000000000000000000000001');
 const stable = getAddress('0x0000000000000000000000000000000000000011');
@@ -22,6 +22,7 @@ describe('rebalance preflight', () => {
     const result = rebalancePreflight(balances('0', '0'), 7000);
     expect(result).toEqual({
       possible: false,
+      code: 'UNFUNDED',
       reason: 'Vault has no assets. Deposit testnet TCTC/ETH before rebalancing.',
       nextAction: 'Deposit supported CC3 vault assets, then refresh the portfolio.',
     });
@@ -37,5 +38,17 @@ describe('rebalance preflight', () => {
   it('calculates the amount and direction for a funded valid vault', () => {
     const result = rebalancePreflight(balances('1000', '0'), 7000);
     expect(result).toMatchObject({ possible: true, amountIn: '300', direction: 'stable-to-risk' });
+  });
+});
+
+describe('shared strategy readiness', () => {
+  const ready = { status: 'READY' as const, code: 'READY' as const, possible: true };
+
+  it('maps an attestation lifecycle state to proof pending', () => {
+    expect(triggerReadiness(ready, 'waiting-for-attestation')).toMatchObject({ status: 'PROOF_PENDING', code: 'PROOF_PENDING', possible: false });
+  });
+
+  it('maps an approval lifecycle state to execution pending', () => {
+    expect(triggerReadiness(ready, 'approval-pending')).toMatchObject({ status: 'EXECUTION_PENDING', code: 'EXECUTION_PENDING', possible: false });
   });
 });

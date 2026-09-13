@@ -100,7 +100,7 @@ ngrok http 8787 --request-header-add "Authorization: Bearer aff_YOUR_TOKEN"
 
 In ChatGPT, enable Developer Mode, create a connector with the ngrok `https://…/mcp` URL, and pick No authentication. Enable the connector from + in each new chat. The click path lives in the app docs at `/docs/chatgpt`.
 
-Read tools query live CC3 and Sepolia balances for the wallet bound to the credential. `get_portfolio_diagnostics` is the canonical preflight read: it returns every owned strategy, its vault, token contract-code checks, token metadata, raw/formatted balances, native TCTC, chain ID, latest block, configuration status, rebalance readiness, and next action. A strategy being `ACTIVE` does not imply that its vault is funded or its tokens are valid. Pause and rebalance tools never sign. The server does not hold browser keys.
+Read tools query live CC3 and Sepolia balances for the wallet bound to the credential. `get_portfolio_diagnostics` is the canonical preflight read: it returns every owned strategy, its vault, token contract-code checks, token metadata, raw/formatted balances, native TCTC, chain ID, latest block, configuration status, rebalance direction/amount, and next action. The shared readiness engine returns `READY`, `UNFUNDED`, `MISCONFIGURED`, `INACTIVE`, `NOT_NEEDED`, `PROOF_PENDING`, or `EXECUTION_PENDING`; every strategy tool uses the same result. A strategy being `ACTIVE` does not imply that its vault is funded or its tokens are valid. Pause and rebalance tools never sign. The server does not hold browser keys.
 
 ## Hosted dashboard
 
