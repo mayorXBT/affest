@@ -12,6 +12,7 @@ const port = Number(process.env.PORT ?? 8787);
 const bootstrapToken = process.env.MCP_BOOTSTRAP_TOKEN ?? 'affest-local';
 const tokenSecret = process.env.MCP_TOKEN_HASH_SECRET ?? randomBytes(32).toString('hex');
 const publicMcpBaseUrl = (process.env.MCP_BASE_URL?.trim() || `http://127.0.0.1:${port}`).replace(/\/+$/, '');
+const buildVersion = process.env.RENDER_GIT_COMMIT ?? process.env.GIT_COMMIT_SHA ?? 'unknown';
 const persistence = process.env.DATABASE_URL ? new PostgresCredentialPersistence(process.env.DATABASE_URL) : undefined;
 const credentials = new CredentialStore(tokenSecret, persistence);
 await credentials.ready();
@@ -21,6 +22,26 @@ const workerIndex = process.env.DATABASE_URL ? new PostgresWorkerIndex(process.e
 const localToken = await credentials.issue('local', 'local-cli', ['read', 'plan', 'proof', 'action']);
 const challengeTtlMs = 5 * 60 * 1000;
 const challenges = new Map<string, { nonce: string; message: string; userId: string; origin: string; expiresAt: number }>();
+
+function logEvent(event: string, fields: Record<string, unknown> = {}): void {
+  process.stdout.write(`${JSON.stringify({ level: 30, time: Date.now(), event, ...fields })}\n`);
+}
+
+function recordValue(value: unknown): Record<string, unknown> | undefined {
+  return typeof value === 'object' && value !== null ? value as Record<string, unknown> : undefined;
+}
+
+function requestShape(body: unknown): Record<string, unknown> {
+  const root = recordValue(body);
+  const params = recordValue(root?.params);
+  const argumentsValue = recordValue(params?.arguments);
+  return {
+    bodyType: body === undefined ? 'empty' : Array.isArray(body) ? 'array' : typeof body,
+    rpcMethod: typeof root?.method === 'string' ? root.method : undefined,
+    tool: typeof params?.name === 'string' ? params.name : undefined,
+    argumentKeys: argumentsValue ? Object.keys(argumentsValue).sort() : [],
+  };
+}
 
 async function readBody(req: IncomingMessage): Promise<unknown> {
   const chunks: Buffer[] = [];
@@ -79,8 +100,8 @@ const httpServer = createServer(async (req, res) => {
     return;
   }
   const requestPath = new URL(req.url ?? '/', `http://${req.headers.host ?? 'localhost'}`).pathname;
-  if (requestPath === '/' && req.method === 'GET') return json(res, 200, { ok: true, service: 'affest-mcp', health: '/health', mcp: '/mcp' });
-  if ((requestPath === '/health' || requestPath === '/mcp/health') && req.method === 'GET') return json(res, 200, { ok: true, service: 'affest-mcp' });
+  if (requestPath === '/' && req.method === 'GET') return json(res, 200, { ok: true, service: 'affest-mcp', version: buildVersion, health: '/health', mcp: '/mcp' });
+  if ((requestPath === '/health' || requestPath === '/mcp/health') && req.method === 'GET') return json(res, 200, { ok: true, service: 'affest-mcp', version: buildVersion });
   if (requestPath === '/credentials/challenge' && req.method === 'GET') {
     const wallet = new URL(req.url ?? '/', `http://${req.headers.host ?? 'localhost'}`).searchParams.get('wallet');
     if (!wallet || !isAddress(wallet)) return json(res, 400, { error: 'valid wallet address required' });
@@ -151,18 +172,26 @@ const httpServer = createServer(async (req, res) => {
   }
   if (!auth) return json(res, 401, { error: 'valid Affest bearer credential required' });
   if (req.method !== 'POST' && req.method !== 'GET' && req.method !== 'DELETE') return json(res, 405, { error: 'method not allowed' });
+  const requestId = randomBytes(8).toString('hex');
+  logEvent('mcp.request.received', { requestId, method: req.method, path: requestPath, hasAuthorization: Boolean(req.headers.authorization), hasSession: Boolean(req.headers['mcp-session-id']) });
+  const requestBody = req.method === 'POST' ? await readBody(req) : undefined;
+  logEvent('mcp.request.pre_validation', { requestId, ...requestShape(requestBody) });
   // A fresh transport per request is the SDK's stateless Streamable HTTP mode.
   const transport = new StreamableHTTPServerTransport();
   const server = registerServer(auth, credentials, workerIndex);
   await server.connect(transport as unknown as Transport);
   try {
-    await transport.handleRequest(req, res, req.method === 'POST' ? await readBody(req) : undefined);
+    await transport.handleRequest(req, res, requestBody);
+  } catch (error: unknown) {
+    logEvent('mcp.request.error', { requestId, error: error instanceof Error ? error.message : 'unknown transport error' });
+    throw error;
   } finally {
     await server.close();
   }
 });
 
 httpServer.listen(port, () => {
+  logEvent('mcp.server.started', { baseUrl: publicMcpBaseUrl, version: buildVersion });
   process.stdout.write(`Affest MCP listening on ${publicMcpBaseUrl}/mcp\n`);
   process.stdout.write(`Local CLI token: ${localToken.token}\n`);
   process.stdout.write(`Bootstrap token: ${bootstrapToken}\n`);

@@ -66,6 +66,10 @@ function normalizedStrategyId(args: { readonly strategyId?: string | number | un
   return value === undefined ? '' : String(value).trim();
 }
 
+function logHandlerEntry(tool: string, strategyId: string, hasIdempotencyKey = false): void {
+  process.stdout.write(`${JSON.stringify({ level: 30, time: Date.now(), event: 'mcp.tool.handler_entry', tool, strategyId, hasIdempotencyKey })}\n`);
+}
+
 function strategyNotFound(strategyId: string) {
   return failure('STRATEGY_NOT_FOUND', { strategyId, reason: `Strategy #${strategyId} was not found for this wallet.`, nextAction: 'Use get_active_strategies or get_portfolio_diagnostics to choose an owned strategy.' });
 }
@@ -223,6 +227,7 @@ export function registerServer(auth: AuthContext, credentials: CredentialStore, 
   server.registerTool('preview_rebalance', { description: 'Prepare a non-signing rebalance preview for a strategy.', inputSchema: idempotentActionInput, outputSchema }, async (args) => {
     record('preview_rebalance');
     const strategyId = normalizedStrategyId(args);
+    logHandlerEntry('preview_rebalance', strategyId, Boolean(args.idempotencyKey));
     const context = await loadDiagnosticContext(auth.userId, workerIndex);
     const diagnosticsError = contextFailure(context);
     if (diagnosticsError) return diagnosticsError;
@@ -255,6 +260,7 @@ export function registerServer(auth: AuthContext, credentials: CredentialStore, 
   server.registerTool('check_strategy_conditions', { description: 'Check whether a strategy has a verified trigger and may be proposed.', inputSchema: strategyInput, outputSchema }, async (args) => {
     record('check_strategy_conditions');
     const strategyId = normalizedStrategyId(args);
+    logHandlerEntry('check_strategy_conditions', strategyId);
     const context = await loadDiagnosticContext(auth.userId, workerIndex);
     const diagnosticsError = contextFailure(context);
     if (diagnosticsError) return diagnosticsError;
