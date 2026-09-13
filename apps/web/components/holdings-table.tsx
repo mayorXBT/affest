@@ -4,7 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { formatUnits, parseEther } from 'viem';
-import { useSwitchChain, useWalletClient, useWriteContract } from 'wagmi';
+import { useSwitchChain, useWriteContract } from 'wagmi';
 import { toast } from 'sonner';
 import { AssetLogo } from '@/components/asset-logo';
 import { StrategyReadiness } from '@/components/strategy-readiness';
@@ -17,11 +17,9 @@ import { Table, TableBody, TableCell, TableRow } from '@/components/ui/table';
 import { getBalance, waitForTransactionReceipt } from 'wagmi/actions';
 import { type AffestAssetId, assetById } from '@/lib/assets';
 import { formatUsd, usdFromAmount, useSpotPrices } from '@/lib/prices';
-import { vaultBytecode, wrappedNativeBytecode } from '@/lib/bytecode';
 import { cc3AddChainParams, creditcoinCc3, sepolia, sepoliaAddChainParams, wagmiConfig } from '@/lib/chain';
-import { cc3Contracts, legacyDemoTokens, sepoliaContracts, vaultAbi, vaultFactoryAbi, wethAbi, wrappedNativeAbi } from '@/lib/contracts';
+import { sepoliaContracts, vaultAbi, wethAbi, wrappedNativeAbi } from '@/lib/contracts';
 import { formatAmount, useCc3Holdings, useOwnedStrategies } from '@/lib/use-cc3';
-import { ensureCc3Vault, ensureWrappedTctc, type VaultDeployers } from '@/lib/vault-setup';
 
 async function addChain(params: typeof cc3AddChainParams | typeof sepoliaAddChainParams) {
   const provider = window.ethereum;
@@ -36,11 +34,12 @@ export function HoldingsTable() {
   const selectedStrategy = requestedStrategyId
     ? strategies.items.find((item) => item.id.toString() === requestedStrategyId)
     : undefined;
-  const selectedVault = requestedStrategyId ? selectedStrategy?.strategy.vault ?? null : undefined;
+  // `null` explicitly disables the legacy factory-vault fallback while no
+  // strategy is selected or while the requested strategy is resolving.
+  const selectedVault = selectedStrategy?.strategy.vault ?? null;
   const holdings = useCc3Holdings(selectedVault);
   const prices = useSpotPrices();
   const { writeContractAsync, isPending } = useWriteContract();
-  const { data: walletClient } = useWalletClient();
   const { switchChainAsync } = useSwitchChain();
   const [amount, setAmount] = useState('');
   const [assetId, setAssetId] = useState<AffestAssetId>('TCTC');
@@ -55,51 +54,18 @@ export function HoldingsTable() {
     }
   }
 
-  function deployers(): VaultDeployers {
-    if (!walletClient) throw new Error('Connect a wallet first');
-    return {
-      deployWrapper: () => walletClient.deployContract({
-        abi: wrappedNativeAbi,
-        bytecode: wrappedNativeBytecode,
-      }),
-      deployVault: (args) => walletClient.deployContract({
-        abi: vaultAbi,
-        bytecode: vaultBytecode,
-        args,
-      }),
-    };
-  }
-
   async function depositTctc(value: bigint) {
     if (!holdings.address) throw new Error('Connect a wallet first');
+    if (!selectedStrategy) throw new Error('Select a strategy before depositing.');
     await switchTo(creditcoinCc3.id);
-    let wrapper = holdings.wrapper;
-    let vault = selectedVault;
-    if (selectedStrategy) {
-      if (!vault || holdings.vaultAddress?.toLowerCase() !== vault.toLowerCase()) {
-        throw new Error('Selected strategy vault could not be verified. Deposit blocked.');
-      }
-      if (!wrapper || wrapper.toLowerCase() !== selectedStrategy.strategy.stableAsset.toLowerCase()) {
-        throw new Error('Selected strategy WTCTC asset could not be verified on CC3. Deposit blocked.');
-      }
-    } else {
-      wrapper = await ensureWrappedTctc(deployers());
-      holdings.rememberWrapper(wrapper);
-      vault = await ensureCc3Vault({
-        owner: holdings.address,
-        wrapper,
-        riskAsset: legacyDemoTokens.risk,
-        deployers: deployers(),
-        createVault: (stable) => writeContractAsync({
-          abi: vaultFactoryAbi,
-          address: cc3Contracts.vaultFactory,
-          functionName: 'createVault',
-          args: [stable, legacyDemoTokens.risk, cc3Contracts.swapAdapter],
-        }),
-      });
-      holdings.rememberVault(vault);
+    const wrapper = holdings.wrapper;
+    const vault = selectedStrategy.strategy.vault;
+    if (!holdings.vaultAddress || holdings.vaultAddress.toLowerCase() !== vault.toLowerCase()) {
+      throw new Error('Selected strategy vault could not be verified. Deposit blocked.');
     }
-    if (!wrapper || !vault) throw new Error('No CC3 vault is available for this deposit.');
+    if (!wrapper || wrapper.toLowerCase() !== selectedStrategy.strategy.stableAsset.toLowerCase()) {
+      throw new Error('Selected strategy WTCTC asset could not be verified on CC3. Deposit blocked.');
+    }
     const wrapHash = await writeContractAsync({
       abi: wrappedNativeAbi,
       address: wrapper,
@@ -166,8 +132,8 @@ export function HoldingsTable() {
 
   async function deposit() {
     try {
-      if (requestedStrategyId && !selectedStrategy) {
-        toast(strategies.loading ? 'Loading the selected strategy vault…' : `Strategy #${requestedStrategyId} was not found for this wallet`);
+      if (!selectedStrategy) {
+        toast(strategies.loading ? 'Loading the selected strategy vault…' : requestedStrategyId ? `Strategy #${requestedStrategyId} was not found for this wallet` : 'Select a strategy before depositing.');
         return;
       }
       if (selectedStrategy && (!holdings.vaultAddress || holdings.vaultAddress.toLowerCase() !== selectedStrategy.strategy.vault.toLowerCase())) {
@@ -209,7 +175,7 @@ export function HoldingsTable() {
   const selectionRequested = Boolean(requestedStrategyId);
   const selectedVaultMatches = Boolean(selectedStrategy && holdings.vaultAddress && holdings.vaultAddress.toLowerCase() === selectedStrategy.strategy.vault.toLowerCase());
   const selectedStableMatches = Boolean(selectedStrategy && holdings.wrapper && holdings.wrapper.toLowerCase() === selectedStrategy.strategy.stableAsset.toLowerCase());
-  const depositTargetVerified = !selectionRequested || Boolean(selectedStrategy && selectedVaultMatches && selectedStableMatches);
+  const depositTargetVerified = Boolean(selectedStrategy && selectedVaultMatches && selectedStableMatches);
   const ethUsd = prices.data?.ethUsd ?? 0;
   const ctcUsd = prices.data?.ctcUsd ?? 0;
   const available = asset.kind === 'cc3-native' ? holdings.tctc : holdings.eth;
@@ -235,6 +201,21 @@ export function HoldingsTable() {
           ) : (
             <b className="block text-[15px]">{strategies.loading ? 'Loading selected strategy…' : `Strategy #${requestedStrategyId} was not found for this wallet`}</b>
           )}
+        </Card>
+      ) : null}
+      {!selectionRequested ? (
+        <Card className="lg:col-span-3 border-line bg-ink-2 p-4">
+          <p className="eyebrow accent">Choose a strategy vault</p>
+          <b className="block text-[15px]">Select which strategy you want to fund</b>
+          <small className="mt-1 block text-[12px] text-muted">Affest never deposits into a global or legacy vault. Pick a strategy to load its exact CC3 vault address.</small>
+          <div className="mt-3 grid gap-2 md:grid-cols-2">
+            {strategies.loading ? <p className="text-[12px] text-[#788484]">Reading strategies on CC3…</p> : strategies.error ? <p className="text-[12px] text-[#ef9a9a]">Could not read strategies on CC3: {strategies.error.message}</p> : strategies.items.length === 0 ? <p className="text-[12px] text-[#788484]">Create a strategy first to get a strategy-specific vault.</p> : strategies.items.map((item) => (
+              <Link key={item.id.toString()} href={`/portfolio?strategyId=${item.id.toString()}`} className="rounded-lg border border-line bg-ink px-3 py-2 transition-colors hover:border-lime/50">
+                <b className="block text-[12px]">Strategy #{item.id.toString()}</b>
+                <small className="mt-1 block break-all text-[10px] text-[#788484]">Vault: {item.strategy.vault}</small>
+              </Link>
+            ))}
+          </div>
         </Card>
       ) : null}
       <Card className="overflow-hidden p-[18px_19px]">
@@ -336,7 +317,7 @@ export function HoldingsTable() {
         <CardHeader>
           <div>
             <p className="eyebrow">Deposit</p>
-            <CardTitle>Fund with TCTC or Sepolia ETH</CardTitle>
+            <CardTitle>{selectedStrategy ? `Fund Strategy #${selectedStrategy.id.toString()}` : 'Fund a strategy vault'}</CardTitle>
           </div>
           <Button variant="link" asChild>
             <Link href="/strategies">Create strategy</Link>
@@ -390,7 +371,7 @@ export function HoldingsTable() {
             </label>
             <Button disabled={!connected || isPending || !depositTargetVerified} onClick={() => void deposit()}>
               {asset.kind === 'cc3-native'
-                ? holdings.vaultAddress ? 'Deposit TCTC' : 'Create vault and deposit'
+                ? selectedStrategy ? 'Deposit TCTC' : 'Select a strategy'
                 : 'Deposit ETH'}
             </Button>
           </div>
@@ -400,7 +381,7 @@ export function HoldingsTable() {
             </b>
             <small className="mt-1 block text-[12px] leading-relaxed text-[#829088]">
               {asset.kind === 'cc3-native'
-                ? 'Deposit wraps TCTC to WTCTC, then sends it to your Affest vault on Creditcoin CC3. First deposit also deploys the wrapper if this browser has not used one yet.'
+                ? selectedStrategy ? `Deposit wraps TCTC to WTCTC, then sends it to Strategy #${selectedStrategy.id.toString()} vault ${selectedStrategy.strategy.vault}.` : 'Select a strategy above to load its exact CC3 vault before depositing.'
                 : 'Pick ETH · Ethereum Sepolia and Deposit ETH. Native ETH has no ERC20 address, so Sepolia stores it as WETH. It cannot move into the Creditcoin vault.'}
             </small>
           </div>

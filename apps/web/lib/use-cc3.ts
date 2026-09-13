@@ -173,7 +173,8 @@ export function useOwnedStrategies() {
 
   return {
     items,
-    loading: count.isLoading || strategies.isLoading,
+    loading: count.isLoading || (total > 0 && strategies.isLoading),
+    error: count.error ?? strategies.error ?? null,
     refetch: () => {
       void count.refetch();
       void strategies.refetch();
@@ -188,6 +189,7 @@ export function useOwnedStrategy() {
     id: first?.id,
     strategy: first?.strategy,
     loading: all.loading,
+    error: all.error,
     refetch: all.refetch,
   };
 }
