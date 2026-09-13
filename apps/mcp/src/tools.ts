@@ -18,9 +18,11 @@ const failure = (error: string, data?: unknown) => ({
 
 const outputSchema = z.object({ ok: z.boolean(), data: z.unknown().optional(), error: z.string().optional() });
 const emptyInput = z.object({});
-const strategyInput = z.object({ strategyId: z.string().min(1) });
+const strategyIdValue = z.union([z.string().trim().min(1), z.number().int().nonnegative()]);
+const strategyInputFields = z.object({ strategyId: strategyIdValue.optional(), strategy_id: strategyIdValue.optional() });
+const strategyInput = strategyInputFields.refine((value) => value.strategyId !== undefined || value.strategy_id !== undefined, { message: 'strategyId is required' });
 const policyInput = z.object({ policy: z.unknown() });
-const idempotentActionInput = strategyInput.extend({ idempotencyKey: z.string().min(8).max(128).optional() });
+const idempotentActionInput = strategyInputFields.extend({ idempotencyKey: z.string().max(128).optional() }).refine((value) => value.strategyId !== undefined || value.strategy_id !== undefined, { message: 'strategyId is required' });
 const sourceTransactionInput = z.object({ transactionHash: z.string().regex(/^0x[0-9a-fA-F]{64}$/), logIndex: z.number().int().nonnegative().optional() });
 const proofInput = z.object({ transactionHash: z.string().regex(/^0x[0-9a-fA-F]{64}$/), chainKey: z.number().int().nonnegative().default(1) });
 const audits: Array<{ at: string; tool: string; userId: string; client: string }> = [];
@@ -57,6 +59,11 @@ function contextFailure(context: DiagnosticContext) {
 
 function findStrategy(context: DiagnosticContext, strategyId: string): PortfolioStrategyDiagnostic | undefined {
   return context.diagnostics?.strategies.find((item) => item.strategyId === strategyId);
+}
+
+function normalizedStrategyId(args: { readonly strategyId?: string | number | undefined; readonly strategy_id?: string | number | undefined }): string {
+  const value = args.strategyId ?? args.strategy_id;
+  return value === undefined ? '' : String(value).trim();
 }
 
 function strategyNotFound(strategyId: string) {
@@ -185,11 +192,12 @@ export function registerServer(auth: AuthContext, credentials: CredentialStore, 
   });
   server.registerTool('get_strategy', { description: 'Read one live CC3 strategy by id.', inputSchema: strategyInput, outputSchema }, async (args) => {
     record('get_strategy');
+    const strategyId = normalizedStrategyId(args);
     const context = await loadDiagnosticContext(auth.userId, workerIndex);
     const diagnosticsError = contextFailure(context);
     if (diagnosticsError) return diagnosticsError;
-    const found = findStrategy(context, args.strategyId);
-    return found ? success(found) : strategyNotFound(args.strategyId);
+    const found = findStrategy(context, strategyId);
+    return found ? success(found) : strategyNotFound(strategyId);
   });
   server.registerTool('draft_strategy', { description: 'Draft a TCTC/ETH mix from natural language. Never executable until the user signs createStrategy.', inputSchema: z.object({ instruction: z.string().min(1).max(2000) }), outputSchema }, async (args) => {
     record('draft_strategy');
@@ -214,21 +222,23 @@ export function registerServer(auth: AuthContext, credentials: CredentialStore, 
   });
   server.registerTool('preview_rebalance', { description: 'Prepare a non-signing rebalance preview for a strategy.', inputSchema: idempotentActionInput, outputSchema }, async (args) => {
     record('preview_rebalance');
+    const strategyId = normalizedStrategyId(args);
     const context = await loadDiagnosticContext(auth.userId, workerIndex);
     const diagnosticsError = contextFailure(context);
     if (diagnosticsError) return diagnosticsError;
-    const strategy = findStrategy(context, args.strategyId);
-    if (!strategy) return strategyNotFound(args.strategyId);
+    const strategy = findStrategy(context, strategyId);
+    if (!strategy) return strategyNotFound(strategyId);
     if (!strategy.readiness.possible) return diagnosticBlocked(strategy);
-    return success({ strategyId: args.strategyId, vault: strategy.vault, stableAsset: strategy.stableAsset, riskAsset: strategy.riskAsset, targetAllocation: strategy.targetAllocation, rebalance: strategy.rebalance, unsigned: true, requiresApproval: true, simulated: false, note: 'Swap simulation is not connected to the MCP service.' });
+    return success({ strategyId, vault: strategy.vault, stableAsset: strategy.stableAsset, riskAsset: strategy.riskAsset, targetAllocation: strategy.targetAllocation, rebalance: strategy.rebalance, unsigned: true, requiresApproval: true, simulated: false, note: 'Swap simulation is not connected to the MCP service.' });
   });
-  server.registerTool('explain_rebalance', { description: 'Explain whether a strategy vault can rebalance and why.', inputSchema: strategyInput.partial(), outputSchema }, async (args) => {
+  server.registerTool('explain_rebalance', { description: 'Explain whether a strategy vault can rebalance and why.', inputSchema: strategyInputFields.partial(), outputSchema }, async (args) => {
     record('explain_rebalance');
     const diagnostics = await loadDiagnosticContext(auth.userId, workerIndex);
     const diagnosticsError = contextFailure(diagnostics);
     if (diagnosticsError) return diagnosticsError;
-    const strategy = args.strategyId ? findStrategy(diagnostics, args.strategyId) : diagnostics.diagnostics?.strategies.find((item) => item.status === 'ACTIVE');
-    if (!strategy) return args.strategyId ? strategyNotFound(args.strategyId) : failure('NO_ACTIVE_STRATEGY', { reason: 'No active strategy found for this wallet.', nextAction: 'Create or activate a strategy, then retry.' });
+    const strategyId = args.strategyId === undefined && args.strategy_id === undefined ? undefined : normalizedStrategyId(args);
+    const strategy = strategyId ? findStrategy(diagnostics, strategyId) : diagnostics.diagnostics?.strategies.find((item) => item.status === 'ACTIVE');
+    if (!strategy) return strategyId ? strategyNotFound(strategyId) : failure('NO_ACTIVE_STRATEGY', { reason: 'No active strategy found for this wallet.', nextAction: 'Create or activate a strategy, then retry.' });
     return success({
       explanation: 'Affest rebalances a TCTC/ETH mix only after Creditcoin verifies an Attestcoin proof of a Sepolia PortfolioSignal. The MCP server never signs. Pause remains on-chain and independent of this credential.',
       verifiedSourceRequired: true,
@@ -244,19 +254,20 @@ export function registerServer(auth: AuthContext, credentials: CredentialStore, 
   });
   server.registerTool('check_strategy_conditions', { description: 'Check whether a strategy has a verified trigger and may be proposed.', inputSchema: strategyInput, outputSchema }, async (args) => {
     record('check_strategy_conditions');
+    const strategyId = normalizedStrategyId(args);
     const context = await loadDiagnosticContext(auth.userId, workerIndex);
     const diagnosticsError = contextFailure(context);
     if (diagnosticsError) return diagnosticsError;
-    const strategy = findStrategy(context, args.strategyId);
-    if (!strategy) return strategyNotFound(args.strategyId);
-    const trigger = context.triggers.find((item) => item.strategyId === args.strategyId);
+    const strategy = findStrategy(context, strategyId);
+    if (!strategy) return strategyNotFound(strategyId);
+    const trigger = context.triggers.find((item) => item.strategyId === strategyId);
     const triggerEligible = trigger?.status === 'verified' || trigger?.status === 'approval-pending' || trigger?.status === 'executed';
     const blockers: string[] = [];
     if (!strategy.readiness.possible) blockers.push(strategy.readiness.reason ?? 'strategy preflight failed');
     if (!triggerEligible) blockers.push(trigger?.status ? `Attestcoin trigger is ${trigger.status}, not verified.` : 'No verified Attestcoin trigger is indexed for this strategy.');
     const eligible = triggerEligible && strategy.readiness.possible;
     return success({
-      strategyId: args.strategyId,
+      strategyId,
       eligible,
       strategyStatus: strategy.status,
       readiness: strategy.readiness,
@@ -303,15 +314,16 @@ export function registerServer(auth: AuthContext, credentials: CredentialStore, 
   });
   server.registerTool('request_rebalance', { description: 'Request a guarded rebalance proposal. Never signs or submits.', inputSchema: idempotentActionInput, outputSchema }, async (args) => {
     record('request_rebalance');
+    const strategyId = normalizedStrategyId(args);
     const context = await loadDiagnosticContext(auth.userId, workerIndex);
     const diagnosticsError = contextFailure(context);
     if (diagnosticsError) return diagnosticsError;
-    const strategy = findStrategy(context, args.strategyId);
-    if (!strategy) return strategyNotFound(args.strategyId);
+    const strategy = findStrategy(context, strategyId);
+    if (!strategy) return strategyNotFound(strategyId);
     if (!strategy.readiness.possible) return diagnosticBlocked(strategy);
-    const trigger = context.triggers.find((item) => item.strategyId === args.strategyId);
-    if (!trigger) return success({ strategyId: args.strategyId, requestId: args.idempotencyKey ?? null, status: 'waiting-for-verified-trigger', requiresApproval: true, unsigned: true, note: 'The worker has not indexed a proof-backed trigger for this strategy.' });
-    return success({ strategyId: args.strategyId, requestId: args.idempotencyKey ?? null, status: trigger.status, requiresApproval: trigger.status === 'approval-pending', unsigned: true, sourceTransactionHash: trigger.transactionHash, details: trigger.statusPayload });
+    const trigger = context.triggers.find((item) => item.strategyId === strategyId);
+    if (!trigger) return success({ strategyId, requestId: args.idempotencyKey ?? null, status: 'waiting-for-verified-trigger', requiresApproval: true, unsigned: true, note: 'The worker has not indexed a proof-backed trigger for this strategy.' });
+    return success({ strategyId, requestId: args.idempotencyKey ?? null, status: trigger.status, requiresApproval: trigger.status === 'approval-pending', unsigned: true, sourceTransactionHash: trigger.transactionHash, details: trigger.statusPayload });
   });
   server.registerTool('prepare_approval_transaction', { description: 'Prepare an unsigned user approval transaction for a proof-verified pending rebalance.', inputSchema: approvalInput, outputSchema }, async (args) => {
     record('prepare_approval_transaction');
@@ -343,11 +355,11 @@ export function registerServer(auth: AuthContext, credentials: CredentialStore, 
   });
   server.registerTool('pause_strategy', { description: 'Describe how to pause. Does not sign.', inputSchema: strategyInput, outputSchema }, async (args) => {
     record('pause_strategy');
-    return success({ strategyId: args.strategyId, unsigned: true, hint: 'Pause from the Affest strategy dashboard. MCP cannot hold the wallet key.' });
+    return success({ strategyId: normalizedStrategyId(args), unsigned: true, hint: 'Pause from the Affest strategy dashboard. MCP cannot hold the wallet key.' });
   });
   server.registerTool('resume_strategy', { description: 'Describe how to resume. Does not sign.', inputSchema: strategyInput, outputSchema }, async (args) => {
     record('resume_strategy');
-    return success({ strategyId: args.strategyId, unsigned: true, hint: 'Resume from the Affest strategy dashboard. MCP cannot hold the wallet key.' });
+    return success({ strategyId: normalizedStrategyId(args), unsigned: true, hint: 'Resume from the Affest strategy dashboard. MCP cannot hold the wallet key.' });
   });
   server.registerTool('revoke_agent_access', { description: 'Revoke this MCP credential immediately.', inputSchema: emptyInput, outputSchema }, async () => {
     record('revoke_agent_access');
