@@ -190,8 +190,58 @@ export function HoldingsTable() {
 
   return (
     <div className="mt-7 grid gap-3.5 lg:grid-cols-3">
+      <Card className="lg:col-span-3 border-line bg-ink-2 p-3 sm:p-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="eyebrow accent">Strategy vaults</p>
+            <CardTitle className="mt-1 text-[17px]">{selectedStrategy ? `Funding Strategy #${selectedStrategy.id.toString()}` : 'Choose a vault to fund'}</CardTitle>
+          </div>
+          <Badge variant="muted">CC3 · Live</Badge>
+        </div>
+        {selectedStrategy ? (
+          <div className="mt-3 rounded-lg border border-lime/30 bg-preview-bg p-3">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <b className="text-[13px]">Strategy #{selectedStrategy.id.toString()}</b>
+                  <small className="text-[11px] text-muted">{selectedStrategy.strategy.stableWeightBps / 100}% WTCTC / {selectedStrategy.strategy.riskWeightBps / 100}% {selectedStrategy.strategy.triggerAsset.toLowerCase() === sepoliaContracts.weth.toLowerCase() ? 'ETH' : 'TCTC'}</small>
+                </div>
+                <small className="mt-1 block break-all text-[11px] text-muted">Vault: {selectedStrategy.strategy.vault}</small>
+              </div>
+              <Link href="/portfolio" className="shrink-0 text-[11px] font-semibold text-lime hover:underline">Change strategy</Link>
+            </div>
+            <div className="mt-2 flex flex-wrap items-end justify-between gap-3">
+              <small className="text-[11px] text-muted">Deposits are locked to this vault. A mismatch keeps Deposit disabled.</small>
+              <StrategyReadiness strategy={selectedStrategy.strategy} />
+            </div>
+          </div>
+        ) : selectionRequested ? (
+          <b className="mt-3 block text-[13px]">{strategies.loading ? 'Loading selected strategy…' : `Strategy #${requestedStrategyId} was not found for this wallet`}</b>
+        ) : strategies.loading ? (
+          <p className="mt-3 text-[12px] text-muted">Reading strategies on CC3…</p>
+        ) : strategies.error ? (
+          <p className="mt-3 text-[12px] text-[#ef9a9a]">Could not read strategies on CC3: {strategies.error.message}</p>
+        ) : strategies.items.length === 0 ? (
+          <p className="mt-3 text-[12px] text-muted">Create a strategy first to get a strategy-specific vault.</p>
+        ) : (
+          <div className="mt-3 grid gap-2 md:grid-cols-2">
+            {strategies.items.map((item) => (
+              <Link key={item.id.toString()} href={`/portfolio?strategyId=${item.id.toString()}`} className="group flex min-w-0 items-center justify-between gap-3 rounded-lg border border-line bg-ink px-3 py-2.5 transition-colors hover:border-lime/50">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <b className="text-[12px]">Strategy #{item.id.toString()}</b>
+                    <small className="text-[10px] text-muted">{item.strategy.stableWeightBps / 100}% WTCTC / {item.strategy.riskWeightBps / 100}% {item.strategy.triggerAsset.toLowerCase() === sepoliaContracts.weth.toLowerCase() ? 'ETH' : 'TCTC'}</small>
+                  </div>
+                  <small className="mt-1 block truncate text-[10px] text-muted" title={item.strategy.vault}>Vault: {item.strategy.vault}</small>
+                </div>
+                <span className="shrink-0 text-[11px] font-semibold text-lime transition-transform group-hover:translate-x-0.5">Fund →</span>
+              </Link>
+            ))}
+          </div>
+        )}
+      </Card>
       {selectionRequested ? (
-        <Card className="lg:col-span-3 border-lime/30 bg-preview-bg p-4">
+        <Card className="hidden lg:col-span-3 border-lime/30 bg-preview-bg p-4">
           <p className="eyebrow accent">Strategy-specific funding</p>
           {selectedStrategy ? (
             <>
@@ -204,7 +254,7 @@ export function HoldingsTable() {
         </Card>
       ) : null}
       {!selectionRequested ? (
-        <Card className="lg:col-span-3 border-line bg-ink-2 p-4">
+        <Card className="hidden lg:col-span-3 border-line bg-ink-2 p-4">
           <p className="eyebrow accent">Choose a strategy vault</p>
           <b className="block text-[15px]">Select which strategy you want to fund</b>
           <small className="mt-1 block text-[12px] text-muted">Affest never deposits into a global or legacy vault. Pick a strategy to load its exact CC3 vault address.</small>
@@ -387,7 +437,7 @@ export function HoldingsTable() {
           </div>
         </CardContent>
       </Card>
-      <Card className="mt-3.5 p-[22px_23px] lg:col-span-3">
+      <Card className="hidden mt-3.5 p-[22px_23px] lg:col-span-3">
         <CardHeader>
           <div>
             <p className="eyebrow">Strategy vaults</p>
