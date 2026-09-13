@@ -12,7 +12,7 @@ const port = Number(process.env.PORT ?? 8787);
 const bootstrapToken = process.env.MCP_BOOTSTRAP_TOKEN ?? 'affest-local';
 const tokenSecret = process.env.MCP_TOKEN_HASH_SECRET ?? randomBytes(32).toString('hex');
 const publicMcpBaseUrl = (process.env.MCP_BASE_URL?.trim() || `http://127.0.0.1:${port}`).replace(/\/+$/, '');
-const buildVersion = process.env.RENDER_GIT_COMMIT ?? process.env.GIT_COMMIT_SHA ?? 'unknown';
+const buildVersion = process.env.RENDER_GIT_COMMIT ?? process.env.GIT_COMMIT_SHA ?? 'request-logging-enabled';
 const persistence = process.env.DATABASE_URL ? new PostgresCredentialPersistence(process.env.DATABASE_URL) : undefined;
 const credentials = new CredentialStore(tokenSecret, persistence);
 await credentials.ready();
@@ -165,15 +165,18 @@ const httpServer = createServer(async (req, res) => {
     return json(res, 200, { revoked: true, credentialId: auth.credentialId });
   }
   if (requestPath !== '/mcp') return json(res, 404, { error: 'not found' });
+  const requestId = randomBytes(8).toString('hex');
+  logEvent('mcp.request.received', { requestId, method: req.method, path: requestPath, hasAuthorization: Boolean(req.headers.authorization), hasSession: Boolean(req.headers['mcp-session-id']) });
   let auth = await credentials.authenticate(req.headers.authorization);
   if (!auth) {
     const ticket = new URL(req.url ?? '/', `http://${req.headers.host ?? 'localhost'}`).searchParams.get('ticket');
     if (ticket) auth = await chatgptLinks.authenticate(ticket, credentials);
   }
-  if (!auth) return json(res, 401, { error: 'valid Affest bearer credential required' });
+  if (!auth) {
+    logEvent('mcp.request.auth_rejected', { requestId });
+    return json(res, 401, { error: 'valid Affest bearer credential required' });
+  }
   if (req.method !== 'POST' && req.method !== 'GET' && req.method !== 'DELETE') return json(res, 405, { error: 'method not allowed' });
-  const requestId = randomBytes(8).toString('hex');
-  logEvent('mcp.request.received', { requestId, method: req.method, path: requestPath, hasAuthorization: Boolean(req.headers.authorization), hasSession: Boolean(req.headers['mcp-session-id']) });
   const requestBody = req.method === 'POST' ? await readBody(req) : undefined;
   logEvent('mcp.request.pre_validation', { requestId, ...requestShape(requestBody) });
   // A fresh transport per request is the SDK's stateless Streamable HTTP mode.
