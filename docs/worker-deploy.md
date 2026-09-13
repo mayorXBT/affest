@@ -33,8 +33,8 @@ ATTESTCOIN_SOURCE_CHAIN_KEY=1
 
 The worker creates `affest_worker_triggers` and
 `affest_worker_cursors` in Neon on first start. It resumes from the cursor
-after a restart and deduplicates `(source_chain, source_transaction_hash,
-strategy_id, source_transaction_hash, log_index)` before requesting a proof.
+after a restart and deduplicates `(strategy_id, source_chain,
+source_transaction_hash, log_index)` before requesting a proof.
 
 The worker matches each `PortfolioSignal` on-chain to every active strategy
 whose owner, trigger asset, signal type, and minimum amount match the event.

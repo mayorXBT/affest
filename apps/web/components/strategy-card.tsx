@@ -64,8 +64,8 @@ export function StrategyCard() {
       </CardHeader>
       <CardContent>
         <p className="my-[18px] max-w-[510px] text-[12px] leading-[1.65] text-[#a2acab]">
-          Target mix is <b className="font-semibold text-paper">{strategy.stableWeightBps / 100}% TCTC</b> and{' '}
-          <b className="font-semibold text-paper">{strategy.riskWeightBps / 100}% ETH</b>. TCTC is vaulted on CC3. ETH is the Sepolia trigger.
+          Target mix is <b className="font-semibold text-paper">{strategy.stableWeightBps / 100}% WTCTC</b> and{' '}
+          <b className="font-semibold text-paper">{strategy.riskWeightBps / 100}% DEMO_RISK</b>. Both portfolio assets are vaulted on CC3. Sepolia ETH is only the source trigger asset.
         </p>
         <div className="grid gap-3 border-y border-[#2b3436] py-4 md:grid-cols-3">
           <div>

@@ -15,6 +15,8 @@ interface Vm {
     function prank(address caller) external;
 
     function warp(uint256 timestamp) external;
+
+    function etch(address target, bytes calldata code) external;
 }
 
 abstract contract TestBase {

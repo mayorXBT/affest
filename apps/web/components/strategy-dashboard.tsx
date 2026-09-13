@@ -14,6 +14,7 @@ import { wagmiConfig } from '@/lib/chain';
 import { cc3Contracts, sepoliaContracts, strategyManagerAbi } from '@/lib/contracts';
 import { useSpotPrices } from '@/lib/prices';
 import { StrategyName } from '@/components/strategy-actions';
+import { StrategyReadiness } from '@/components/strategy-readiness';
 import { readDraft } from '@/lib/strategy-drafts';
 import { formatPct, formatUsd, strategyMetrics } from '@/lib/strategy-value';
 import { formatAmount, useCc3Holdings, useOwnedStrategies } from '@/lib/use-cc3';
@@ -164,6 +165,9 @@ export function StrategyDashboard({ id }: { id: string }) {
         </Card>
         <Card className="p-5">
           <p className="eyebrow">Holdings</p>
+          <div className="mt-3 border-b border-line pb-3">
+            <StrategyReadiness strategy={strategy} />
+          </div>
           <div className="mt-3 flex items-center justify-between text-[13px]">
             <span className="flex items-center gap-2"><AssetLogo kind="TCTC" size={18} /> TCTC in vault</span>
             <span className="tabular">{formatAmount(holdings.vaultTctc)}</span>

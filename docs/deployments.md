@@ -62,3 +62,10 @@ as their CC3 `riskAsset`. Those strategies cannot simulate a rebalance because
 the address has no ERC-20 bytecode on CC3. Create a new strategy after the
 dashboard redeploy. The worker discovers active strategies on-chain and routes
 signals automatically, so users do not set a per-strategy worker variable.
+
+The current `AffestStrategyManager` source also rejects new strategies whose
+stable or risk asset has no CC3 contract bytecode (`AssetNotContract`). That
+check takes effect after deploying the updated manager and pointing the
+dashboard and worker at its new address. Existing strategies are not silently
+mutated; diagnostics report them as `MISCONFIGURED` with a recreate/revoke next
+action.

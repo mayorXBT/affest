@@ -12,6 +12,13 @@ contract AffestStrategyManagerTest is TestBase {
     address internal constant RISK = address(0xB15C);
     address internal constant EXECUTOR = address(0xE0);
 
+    function setUp() public {
+        // The manager now checks destination token bytecode. Give the test
+        // token fixtures code without pulling a full ERC20 into this suite.
+        vm.etch(STABLE, hex"6001600055");
+        vm.etch(RISK, hex"6001600055");
+    }
+
     function testCreatesDeterministicHybridStrategy() external {
         AffestStrategyManager manager = new AffestStrategyManager();
         manager.setExecutor(EXECUTOR);
@@ -33,6 +40,15 @@ contract AffestStrategyManagerTest is TestBase {
         policy.riskWeightBps = 2_999;
 
         vm.expectRevert(AffestStrategyManager.InvalidAllocation.selector);
+        manager.createStrategy(policy);
+    }
+
+    function testRejectsVaultAssetWithoutDestinationChainCode() external {
+        AffestStrategyManager manager = new AffestStrategyManager();
+        AffestStrategyManager.Policy memory policy = _hybridPolicy();
+        policy.riskAsset = address(0xBAD);
+
+        vm.expectRevert(AffestStrategyManager.AssetNotContract.selector);
         manager.createStrategy(policy);
     }
 

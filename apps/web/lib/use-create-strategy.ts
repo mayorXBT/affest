@@ -2,7 +2,7 @@
 
 import { decodeEventLog, parseUnits } from 'viem';
 import { useSwitchChain, useWalletClient, useWriteContract } from 'wagmi';
-import { readContract, waitForTransactionReceipt } from 'wagmi/actions';
+import { getBytecode, readContract, waitForTransactionReceipt } from 'wagmi/actions';
 import { vaultBytecode, wrappedNativeBytecode } from '@/lib/bytecode';
 import { cc3AddChainParams, creditcoinCc3, wagmiConfig } from '@/lib/chain';
 import { cc3Contracts, legacyDemoTokens, sepoliaContracts, strategyManagerAbi, vaultAbi, vaultFactoryAbi, wrappedNativeAbi } from '@/lib/contracts';
@@ -55,6 +55,10 @@ export function useCreateStrategy() {
     // valid as the source-chain trigger asset and must never be used in CC3
     // vault/strategy asset slots.
     const riskAsset = legacyDemoTokens.risk;
+    const riskCode = await getBytecode(wagmiConfig, { address: riskAsset, chainId: creditcoinCc3.id });
+    if (!riskCode || riskCode === '0x') {
+      throw new Error(`Risk token ${riskAsset} is not deployed on Creditcoin CC3. Choose the configured CC3 DEMO_RISK token.`);
+    }
     const vault = await ensureCc3Vault({
       owner: holdings.address,
       wrapper,

@@ -5,6 +5,7 @@ contract AffestStrategyManager {
     error Unauthorized();
     error ExecutorAlreadySet();
     error InvalidAddress();
+    error AssetNotContract();
     error InvalidAllocation();
     error InvalidLimits();
     error InvalidExpiry();
@@ -211,6 +212,12 @@ contract AffestStrategyManager {
                 || policy.triggerAsset == address(0)
                 || policy.stableAsset == policy.riskAsset
         ) revert InvalidAddress();
+        // Vault assets must be ERC20 contracts deployed on the destination
+        // chain. The trigger asset is intentionally not checked here because
+        // it identifies the source-chain event asset (for example Sepolia WETH).
+        if (policy.stableAsset.code.length == 0 || policy.riskAsset.code.length == 0) {
+            revert AssetNotContract();
+        }
         if (
             uint256(policy.stableWeightBps) + uint256(policy.riskWeightBps)
                 != 10_000

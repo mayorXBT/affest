@@ -6,6 +6,7 @@ import { AssetLogo } from '@/components/asset-logo';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { StrategyActions, StrategyName } from '@/components/strategy-actions';
+import { StrategyReadiness } from '@/components/strategy-readiness';
 import { useSpotPrices } from '@/lib/prices';
 import { readDraft } from '@/lib/strategy-drafts';
 import { formatPct, formatUsd, strategyMetrics } from '@/lib/strategy-value';
@@ -75,9 +76,6 @@ export function StrategyList() {
             <ul className="m-0 list-none p-0" data-draft-tick={draftTick}>
               {rows.map((row) => {
                 const paused = row.strategy.status === 1;
-                const next = row.strategy.lastExecutionAt === 0n || row.strategy.cooldownSeconds === 0n
-                  ? 'On verified signal'
-                  : 'After cooldown';
                 const tctcPct = row.strategy.stableWeightBps / 100;
                 const metrics = strategyMetrics({
                   tctcPct,
@@ -95,14 +93,14 @@ export function StrategyList() {
                       <i className={`size-2 shrink-0 rounded-full ${paused ? 'bg-[#f5b96a]' : 'bg-[#8fef9a]'}`} />
                       <div className="min-w-0">
                         <b className="block truncate text-[13px]"><StrategyName id={row.id.toString()} /></b>
-                        <small className="block truncate text-[11px] text-[#6f7c7d]">{row.strategy.stableWeightBps / 100}% TCTC / {row.strategy.riskWeightBps / 100}% ETH</small>
+                        <small className="block truncate text-[11px] text-[#6f7c7d]">{row.strategy.stableWeightBps / 100}% WTCTC / {row.strategy.riskWeightBps / 100}% DEMO_RISK</small>
                       </div>
                     </div>
                     <div className="flex items-center gap-1">
                       <AssetLogo kind="TCTC" size={18} />
                       <AssetLogo kind="ETH" size={18} />
                     </div>
-                    <span className="truncate text-[12px] text-[#a2acab]">{next}</span>
+                    <StrategyReadiness strategy={row.strategy} />
                     <span className="text-right text-[12px] tabular">{holdings.isConnected ? formatUsd(metrics.currentUsd) : '—'}</span>
                     <span className={`text-right text-[12px] tabular ${metrics.totalReturn !== undefined && metrics.totalReturn >= 0 ? 'text-[#8fef9a]' : 'text-[#f0b3a5]'}`}>
                       {formatPct(metrics.totalReturn)}

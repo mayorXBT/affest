@@ -6,6 +6,7 @@ import { formatUnits, parseEther } from 'viem';
 import { useSwitchChain, useWalletClient, useWriteContract } from 'wagmi';
 import { toast } from 'sonner';
 import { AssetLogo } from '@/components/asset-logo';
+import { StrategyReadiness } from '@/components/strategy-readiness';
 import { Sparkline } from '@/components/sparkline';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -18,7 +19,7 @@ import { formatUsd, usdFromAmount, useSpotPrices } from '@/lib/prices';
 import { vaultBytecode, wrappedNativeBytecode } from '@/lib/bytecode';
 import { cc3AddChainParams, creditcoinCc3, sepolia, sepoliaAddChainParams, wagmiConfig } from '@/lib/chain';
 import { cc3Contracts, legacyDemoTokens, sepoliaContracts, vaultAbi, vaultFactoryAbi, wethAbi, wrappedNativeAbi } from '@/lib/contracts';
-import { formatAmount, useCc3Holdings } from '@/lib/use-cc3';
+import { formatAmount, useCc3Holdings, useOwnedStrategies } from '@/lib/use-cc3';
 import { ensureCc3Vault, ensureWrappedTctc, type VaultDeployers } from '@/lib/vault-setup';
 
 async function addChain(params: typeof cc3AddChainParams | typeof sepoliaAddChainParams) {
@@ -29,6 +30,7 @@ async function addChain(params: typeof cc3AddChainParams | typeof sepoliaAddChai
 
 export function HoldingsTable() {
   const holdings = useCc3Holdings();
+  const strategies = useOwnedStrategies();
   const prices = useSpotPrices();
   const { writeContractAsync, isPending } = useWriteContract();
   const { data: walletClient } = useWalletClient();
@@ -350,6 +352,33 @@ export function HoldingsTable() {
                 : 'Pick ETH · Ethereum Sepolia and Deposit ETH. Native ETH has no ERC20 address, so Sepolia stores it as WETH. It cannot move into the Creditcoin vault.'}
             </small>
           </div>
+        </CardContent>
+      </Card>
+      <Card className="mt-3.5 p-[22px_23px] lg:col-span-3">
+        <CardHeader>
+          <div>
+            <p className="eyebrow">Strategy vaults</p>
+            <CardTitle>Every vault owned by this wallet</CardTitle>
+          </div>
+          <Badge variant="muted">Live CC3 reads</Badge>
+        </CardHeader>
+        <CardContent>
+          {strategies.loading ? <p className="text-[12px] text-[#788484]">Reading strategy vaults on CC3…</p> : strategies.items.length === 0 ? <p className="text-[12px] text-[#788484]">No strategy vaults found for this wallet.</p> : (
+            <div className="grid gap-3 md:grid-cols-2">
+              {strategies.items.map((item) => (
+                <div key={item.id.toString()} className="rounded-lg border border-line bg-ink-2 p-3">
+                  <div className="mb-2 flex items-start justify-between gap-3">
+                    <div>
+                      <b className="block text-[13px]">Strategy #{item.id.toString()}</b>
+                      <small className="mt-1 block break-all text-[10px] text-[#657173]">{item.strategy.vault}</small>
+                    </div>
+                    <small className="shrink-0 text-[11px] text-[#788484]">{item.strategy.stableWeightBps / 100}% WTCTC / {item.strategy.riskWeightBps / 100}% DEMO_RISK</small>
+                  </div>
+                  <StrategyReadiness strategy={item.strategy} />
+                </div>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

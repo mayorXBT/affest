@@ -11,8 +11,9 @@ function balances(stableBalance: string, riskBalance: string, readable = true): 
     vault,
     owner: vault,
     nativeTctc: '0',
-    stable: { asset: stable, symbol: 'WTCTC', decimals: 18, balance: stableBalance, readable },
-    risk: { asset: risk, symbol: readable ? 'DEMO_RISK' : null, decimals: readable ? 18 : null, balance: riskBalance, readable, ...(readable ? {} : { reason: 'Risk asset has no contract code on Creditcoin CC3.' }) },
+    vaultExists: true,
+    stable: { asset: stable, symbol: 'WTCTC', decimals: 18, balance: stableBalance, formatted: stableBalance, readable, contractExists: readable },
+    risk: { asset: risk, symbol: readable ? 'DEMO_RISK' : null, decimals: readable ? 18 : null, balance: riskBalance, formatted: riskBalance, readable, contractExists: readable, ...(readable ? {} : { reason: 'Risk asset has no contract code on Creditcoin CC3.' }) },
   };
 }
 

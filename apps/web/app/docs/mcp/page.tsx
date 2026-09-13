@@ -72,7 +72,12 @@ export default function DocsMcpPage() {
           <tr>
             <td><code>get_portfolios</code></td>
             <td>read</td>
-            <td>Same holdings as a one-item list.</td>
+            <td>Account plus every owned strategy vault and its live readiness.</td>
+          </tr>
+          <tr>
+            <td><code>get_portfolio_diagnostics</code></td>
+            <td>read</td>
+            <td>CC3 chain snapshot, token code checks, balances, configuration, and next action for every strategy.</td>
           </tr>
           <tr>
             <td><code>get_portfolio</code></td>
