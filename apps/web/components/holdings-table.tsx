@@ -190,7 +190,7 @@ export function HoldingsTable() {
 
   return (
     <div className="mt-7 grid gap-3.5 lg:grid-cols-3">
-      <Card className="lg:col-span-3 border-line bg-ink-2 p-3 sm:p-4">
+      <Card className="order-4 lg:col-span-3 border-line bg-ink-2 p-3 sm:p-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <p className="eyebrow accent">Strategy vaults</p>
@@ -268,7 +268,7 @@ export function HoldingsTable() {
           </div>
         </Card>
       ) : null}
-      <Card className="overflow-hidden p-[18px_19px]">
+      <Card className="order-1 overflow-hidden p-[18px_19px]">
         <div className="flex items-start justify-between gap-3">
           <div>
             <p className="eyebrow">Vault status</p>
@@ -291,7 +291,7 @@ export function HoldingsTable() {
           </div>
         </div>
       </Card>
-      <Card className="overflow-hidden p-[18px_19px]">
+      <Card className="order-1 overflow-hidden p-[18px_19px]">
         <div className="flex items-start justify-between gap-3">
           <div>
             <p className="eyebrow">Wallet TCTC</p>
@@ -307,7 +307,7 @@ export function HoldingsTable() {
           />
         </div>
       </Card>
-      <Card className="overflow-hidden p-[18px_19px]">
+      <Card className="order-1 overflow-hidden p-[18px_19px]">
         <div className="flex items-start justify-between gap-3">
           <div>
             <p className="eyebrow">Wallet ETH</p>
@@ -323,7 +323,7 @@ export function HoldingsTable() {
           />
         </div>
       </Card>
-      <Card className="min-h-[260px] p-[22px_23px] lg:col-span-1">
+      <Card className="order-3 min-h-[260px] p-[22px_23px] lg:col-span-3">
         <CardHeader>
           <div>
             <p className="eyebrow">Holdings</p>
@@ -363,7 +363,7 @@ export function HoldingsTable() {
           )}
         </CardContent>
       </Card>
-      <Card className="min-h-[260px] p-[22px_23px] lg:col-span-2">
+      <Card className="order-2 min-h-[260px] p-[22px_23px] lg:col-span-3">
         <CardHeader>
           <div>
             <p className="eyebrow">Deposit</p>
