@@ -20,7 +20,7 @@ export function DocsCard({
       className="rounded-lg border border-line bg-ink-2 p-4 no-underline transition-colors hover:border-lime/40 hover:[&_span]:no-underline"
     >
       <span className="block text-[15px] font-semibold text-paper">{title}</span>
-      <span className="mt-1 block text-[13px] leading-relaxed text-[#c5cfca]">{children}</span>
+      <span className="mt-1 block text-[13px] leading-relaxed text-docs-body">{children}</span>
     </Link>
   );
 }

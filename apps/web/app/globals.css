@@ -16,6 +16,7 @@
   --color-paper: var(--paper);
   --color-muted: var(--muted);
   --color-muted-2: var(--muted-2);
+  --color-docs-body: var(--docs-body);
   --color-lime: var(--lime);
   --color-lime-2: var(--lime-2);
   --color-lime-ink: var(--lime-ink);
@@ -65,6 +66,7 @@
   --paper: #f1efe7;
   --muted: #8f9a9b;
   --muted-2: #657173;
+  --docs-body: #c5cfca;
   --lime: #d6f26a;
   --lime-2: #a9c440;
   --lime-ink: #101410;
@@ -77,6 +79,11 @@
   --preview-bg: #172018;
   --wait-bg: #2b2418;
   --wait-line: #5c4a2e;
+  --callout-bg: #2b2418;
+  --callout-line: #5c4a2e;
+  --callout-text: #e6d39a;
+  --callout-title: #f5b96a;
+  --callout-code-bg: #1c1810;
   --sidebar-line: #20272a;
 }
 
@@ -91,6 +98,7 @@ html[data-theme='light'] {
   --paper: #18221d;
   --muted: #61716a;
   --muted-2: #718079;
+  --docs-body: #3f4e46;
   --lime: #64851d;
   --lime-2: #557216;
   --lime-ink: #ffffff;
@@ -103,6 +111,11 @@ html[data-theme='light'] {
   --preview-bg: #eef5ea;
   --wait-bg: #fff6e6;
   --wait-line: #e8c98e;
+  --callout-bg: #fff7e6;
+  --callout-line: #d8b66e;
+  --callout-text: #5f481b;
+  --callout-title: #8a5a00;
+  --callout-code-bg: #fff0c7;
   --sidebar-line: #e1e8e1;
 }
 
@@ -129,11 +142,25 @@ body {
 
 .eyebrow {
   margin: 0 0 9px;
-  color: #7c8889;
+  color: var(--muted);
   font-family: var(--font-mono);
   font-size: 11px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
+}
+
+.docs-callout {
+  border-color: var(--callout-line);
+  background: var(--callout-bg);
+  color: var(--callout-text);
+}
+
+.docs-callout > p:first-child {
+  color: var(--callout-title);
+}
+
+.docs-callout code {
+  background: var(--callout-code-bg);
 }
 
 .eyebrow.accent {
