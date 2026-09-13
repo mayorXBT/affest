@@ -25,7 +25,7 @@ balances, demo swaps, or testnet deployments as financial infrastructure.
 
 ## Judge materials
 
-- [Attestcoin Protocol Integration Summary](https://affest.cefo.dev/affest-summary.pdf)
+- [Attestcoin Protocol Integration Summary](https://affest.cefo.dev/docs/attestcoin)
 - [Affest One-Page Litepaper](https://affest.cefo.dev/affest-whitepaper.pdf)
 
 ## Repository layout
