@@ -10,6 +10,7 @@ import { waitForTransactionReceipt } from 'wagmi/actions';
 import { wagmiConfig } from '@/lib/chain';
 import { cc3Contracts, strategyManagerAbi } from '@/lib/contracts';
 import { useOwnedStrategy } from '@/lib/use-cc3';
+import { strategyRiskLabel } from '@/lib/strategy-labels';
 
 export function StrategyCard() {
   const owned = useOwnedStrategy();
@@ -65,7 +66,7 @@ export function StrategyCard() {
       <CardContent>
         <p className="my-[18px] max-w-[510px] text-[12px] leading-[1.65] text-[#a2acab]">
           Target mix is <b className="font-semibold text-paper">{strategy.stableWeightBps / 100}% WTCTC</b> and{' '}
-          <b className="font-semibold text-paper">{strategy.riskWeightBps / 100}% DEMO_RISK</b>. Both portfolio assets are vaulted on CC3. Sepolia ETH is only the source trigger asset.
+          <b className="font-semibold text-paper">{strategy.riskWeightBps / 100}% {strategyRiskLabel(strategy.triggerAsset)}</b>. This strategy owns its own CC3 vault. Sepolia ETH is the source trigger when shown.
         </p>
         <div className="grid gap-3 border-y border-[#2b3436] py-4 md:grid-cols-3">
           <div>

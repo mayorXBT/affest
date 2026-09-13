@@ -6,6 +6,7 @@ import { getBytecode, readContract } from 'wagmi/actions';
 import { Badge } from '@/components/ui/badge';
 import { erc20Abi, vaultAbi } from '@/lib/contracts';
 import { creditcoinCc3, wagmiConfig } from '@/lib/chain';
+import { strategyRiskLabel } from '@/lib/strategy-labels';
 
 type StrategyLike = {
   readonly status: number;
@@ -13,6 +14,7 @@ type StrategyLike = {
   readonly vault: Address;
   readonly stableAsset: Address;
   readonly riskAsset: Address;
+  readonly triggerAsset: Address;
   readonly stableWeightBps: number;
   readonly riskWeightBps: number;
 };
@@ -70,24 +72,25 @@ export function StrategyReadiness({ strategy }: { strategy: StrategyLike }) {
           if (!cancelled) setReadiness(empty('Misconfigured', !stable.ok ? `Stable token ${stable.reason}` : `Risk token ${risk.reason}`));
           return;
         }
+        const riskLabel = strategyRiskLabel(strategy.triggerAsset);
         if (stable.raw === 0n && risk.raw === 0n) {
-          if (!cancelled) setReadiness({ label: 'Unfunded', detail: 'Deposit WTCTC or DEMO_RISK into this vault on CC3.', stable: `${stable.formatted} ${stable.symbol}`, risk: `${risk.formatted} ${risk.symbol}` });
+          if (!cancelled) setReadiness({ label: 'Unfunded', detail: `Fund this vault before rebalancing. Strategy tracks WTCTC / ${riskLabel}.`, stable: `${stable.formatted} WTCTC`, risk: `${risk.formatted} ${riskLabel}` });
           return;
         }
         const total = stable.raw + risk.raw;
         const balanced = stable.raw * 10_000n === total * BigInt(strategy.stableWeightBps);
         if (balanced) {
-          if (!cancelled) setReadiness({ label: 'Balanced', detail: 'Vault is funded and already matches the target allocation.', stable: `${stable.formatted} ${stable.symbol}`, risk: `${risk.formatted} ${risk.symbol}` });
+          if (!cancelled) setReadiness({ label: 'Balanced', detail: 'Vault is funded and already matches the target allocation.', stable: `${stable.formatted} WTCTC`, risk: `${risk.formatted} ${riskLabel}` });
           return;
         }
-        if (!cancelled) setReadiness({ label: 'Ready', detail: 'Vault is funded and can be checked for a verified trigger.', stable: `${stable.formatted} ${stable.symbol}`, risk: `${risk.formatted} ${risk.symbol}` });
+        if (!cancelled) setReadiness({ label: 'Ready', detail: 'Vault is funded and can be checked for a verified trigger.', stable: `${stable.formatted} WTCTC`, risk: `${risk.formatted} ${riskLabel}` });
       } catch (error: unknown) {
         if (!cancelled) setReadiness(empty('Unavailable', error instanceof Error ? error.message : 'Could not read CC3 vault diagnostics.'));
       }
     }
     void read();
     return () => { cancelled = true; };
-  }, [strategy.riskAsset, strategy.stableAsset, strategy.status, strategy.vault]);
+  }, [strategy.riskAsset, strategy.stableAsset, strategy.status, strategy.triggerAsset, strategy.vault]);
 
   const variant = readiness.label === 'Ready' ? 'default' : readiness.label === 'Misconfigured' ? 'preview' : readiness.label === 'Paused' ? 'waiting' : 'muted';
   return (

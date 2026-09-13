@@ -57,7 +57,7 @@ export function useCreateStrategy() {
     const riskAsset = legacyDemoTokens.risk;
     const riskCode = await getBytecode(wagmiConfig, { address: riskAsset, chainId: creditcoinCc3.id });
     if (!riskCode || riskCode === '0x') {
-      throw new Error(`Risk token ${riskAsset} is not deployed on Creditcoin CC3. Choose the configured CC3 DEMO_RISK token.`);
+      throw new Error(`Risk asset ${riskAsset} is not deployed on Creditcoin CC3. Choose the configured CC3 strategy asset.`);
     }
     const vault = await ensureCc3Vault({
       owner: holdings.address,

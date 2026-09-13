@@ -32,11 +32,11 @@ async function addChain(params: typeof cc3AddChainParams | typeof sepoliaAddChai
 export function HoldingsTable() {
   const strategies = useOwnedStrategies();
   const search = useSearchParams();
-  const requestedStrategyId = search.get('strategy');
+  const requestedStrategyId = search.get('strategyId') ?? search.get('strategy');
   const selectedStrategy = requestedStrategyId
     ? strategies.items.find((item) => item.id.toString() === requestedStrategyId)
     : undefined;
-  const selectedVault = selectedStrategy?.strategy.vault;
+  const selectedVault = requestedStrategyId ? selectedStrategy?.strategy.vault ?? null : undefined;
   const holdings = useCc3Holdings(selectedVault);
   const prices = useSpotPrices();
   const { writeContractAsync, isPending } = useWriteContract();
@@ -125,7 +125,7 @@ export function HoldingsTable() {
 
   async function moveWrappedIntoVault() {
     if (!holdings.wrapper || !holdings.vaultAddress || holdings.wrappedTctc === 0n) return;
-    if (selectedStrategy && holdings.vaultAddress.toLowerCase() !== selectedStrategy.strategy.vault.toLowerCase()) {
+    if (selectedStrategy && (holdings.vaultAddress.toLowerCase() !== selectedStrategy.strategy.vault.toLowerCase() || holdings.wrapper?.toLowerCase() !== selectedStrategy.strategy.stableAsset.toLowerCase())) {
       toast('Selected strategy vault could not be verified. Deposit blocked.');
       return;
     }
@@ -230,7 +230,7 @@ export function HoldingsTable() {
           {selectedStrategy ? (
             <>
               <b className="block text-[15px]">Funding Strategy #{selectedStrategy.id.toString()}</b>
-              <small className="mt-1 block break-all text-[12px] text-muted">Deposits are locked to {selectedStrategy.strategy.vault}. If the displayed vault does not match, deposits stay blocked.</small>
+              <small className="mt-1 block text-[12px] text-muted">Deposits are locked to this strategy’s vault. If the displayed vault does not match, deposits stay blocked.</small>
             </>
           ) : (
             <b className="block text-[15px]">{strategies.loading ? 'Loading selected strategy…' : `Strategy #${requestedStrategyId} was not found for this wallet`}</b>
@@ -242,8 +242,8 @@ export function HoldingsTable() {
           <div>
             <p className="eyebrow">Vault status</p>
             <b className="block text-[17px]">{selectedStrategy ? `Strategy #${selectedStrategy.id.toString()} vault` : holdings.vaultAddress ? 'Vault on CC3' : connected ? 'No vault yet' : 'Not connected'}</b>
-            <small className="mt-1 block text-[12px] text-[#778384]">
-              {holdings.vaultAddress ? `${holdings.vaultAddress.slice(0, 6)}…${holdings.vaultAddress.slice(-4)}` : 'Creditcoin CC3 · TCTC custody'}
+            <small className="mt-1 block break-all text-[12px] text-[#778384]">
+              {holdings.vaultAddress ? `Vault: ${holdings.vaultAddress}` : 'Creditcoin CC3 · TCTC custody'}
             </small>
           </div>
           <div className="flex flex-col items-end gap-1">

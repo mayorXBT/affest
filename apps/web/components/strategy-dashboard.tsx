@@ -181,10 +181,10 @@ export function StrategyDashboard({ id }: { id: string }) {
           </small>
           <div className="mt-4 flex gap-2">
             <Button className="flex-1" asChild>
-              <Link href={`/portfolio?strategy=${row.id.toString()}`}>Deposit</Link>
+              <Link href={`/portfolio?strategyId=${row.id.toString()}`}>Deposit</Link>
             </Button>
             <Button className="flex-1" variant="outline" asChild>
-              <Link href={`/portfolio?strategy=${row.id.toString()}`}>Withdraw</Link>
+              <Link href={`/portfolio?strategyId=${row.id.toString()}`}>Withdraw</Link>
             </Button>
           </div>
         </Card>

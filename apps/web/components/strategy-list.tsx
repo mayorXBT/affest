@@ -11,6 +11,7 @@ import { useSpotPrices } from '@/lib/prices';
 import { readDraft } from '@/lib/strategy-drafts';
 import { formatPct, formatUsd, strategyMetrics } from '@/lib/strategy-value';
 import { useCc3Holdings, useOwnedStrategies } from '@/lib/use-cc3';
+import { strategyRiskLabel } from '@/lib/strategy-labels';
 
 const columns = 'grid-cols-[minmax(200px,1.5fr)_112px_minmax(150px,1fr)_104px_96px_96px_124px]';
 
@@ -93,7 +94,7 @@ export function StrategyList() {
                       <i className={`size-2 shrink-0 rounded-full ${paused ? 'bg-[#f5b96a]' : 'bg-[#8fef9a]'}`} />
                       <div className="min-w-0">
                         <b className="block truncate text-[13px]"><StrategyName id={row.id.toString()} /></b>
-                        <small className="block truncate text-[11px] text-[#6f7c7d]">{row.strategy.stableWeightBps / 100}% WTCTC / {row.strategy.riskWeightBps / 100}% DEMO_RISK</small>
+                        <small className="block truncate text-[11px] text-[#6f7c7d]">{row.strategy.stableWeightBps / 100}% WTCTC / {row.strategy.riskWeightBps / 100}% {strategyRiskLabel(row.strategy.triggerAsset)}</small>
                       </div>
                     </div>
                     <div className="flex items-center gap-1">

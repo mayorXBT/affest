@@ -14,7 +14,7 @@ export function useCc3Account() {
   return { ...account, onCc3, onSepolia };
 }
 
-export function useCc3Holdings(vaultOverride?: Address) {
+export function useCc3Holdings(vaultOverride?: Address | null) {
   const { address, isConnected, onCc3, onSepolia } = useCc3Account();
   const [storedWrapper, setStoredWrapper] = useState<Address | undefined>();
   const [sidecarVault, setSidecarVault] = useState<Address | undefined>();
@@ -47,7 +47,9 @@ export function useCc3Holdings(vaultOverride?: Address) {
   const factoryVaultAddress = factoryVault.data && factoryVault.data !== zeroAddress ? factoryVault.data : undefined;
   // The factory vault is the wallet's canonical vault. A sidecar can exist
   // from an older strategy, but it must not hide funds in the canonical vault.
-  const vaultAddress = vaultOverride ?? factoryVaultAddress ?? sidecarVault;
+  // `null` is an explicit "no selected vault" state. It prevents a stale
+  // canonical vault from being read while a strategy-specific route resolves.
+  const vaultAddress = vaultOverride === null ? undefined : vaultOverride ?? factoryVaultAddress ?? sidecarVault;
 
   const vaultNative = useBalance({
     address: vaultAddress,
